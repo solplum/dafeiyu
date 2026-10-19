@@ -19,6 +19,7 @@
  *     text: '他要主页截图，我截好发过去了。……' }
  *
  * CLI（不写代码也能用）：
+ *   node src/diary.js auto                # ★让她自己写一条（要 config.json 里有 apiKey）
  *   node src/diary.js add "今天她终于把花开出来了" --mood 高兴 --title 开花了
  *   node src/diary.js list -n 5
  *   node src/diary.js day 2026-10-19
@@ -26,6 +27,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { composeDiary, readModelConfig } from './diary-author.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -175,12 +178,62 @@ function parseArgs(argv) {
   return out;
 }
 
-function main() {
+async function main() {
   const argv = process.argv.slice(2);
   const a = parseArgs(argv);
   const [cmd, ...rest] = a._;
   const dir = a.dir || process.env.DIARY_DIR || path.join(process.cwd(), 'data', 'diary');
   const diary = new Diary({ dir });
+
+  // ── auto：让她自己写一条（一键，写日记.bat 默认走这里）───────────
+  if (cmd === 'auto') {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const cfgFile = a.config || process.env.COMPANION_CONFIG || path.join(here, '..', 'config.json');
+    const cfg = readModelConfig(cfgFile);
+    const diary2 = a.dir || process.env.DIARY_DIR ? diary : new Diary({ dir: cfg.diaryDir, maxChars: cfg.diaryMaxChars });
+
+    let roleText = '';
+    try { roleText = fs.readFileSync(cfg.roleCard, 'utf8'); } catch { /* 没有角色卡就用通用人格 */ }
+
+    let memoryText = '';
+    try {
+      const { Memory } = await import('./memory.js');
+      memoryText = new Memory({ dir: cfg.dataDir }).renderRecent(Number(a.n || 16));
+    } catch { /* 记忆没初始化过就算了 */ }
+
+    const diaryText = diary2.context(3, 3) || '';
+    const avoidText = diary2.recent(4)
+      .map((r) => (r.title ? r.title + '｜' : '') + r.text.replace(/\s+/g, ' ').slice(0, 34))
+      .join('\n');
+    console.log('她在想……（模型 ' + cfg.model + '）');
+
+    const row = await composeDiary({
+      apiKey: cfg.apiKey,
+      baseUrl: cfg.baseUrl,
+      model: cfg.model,
+      roleText,
+      memoryText,
+      diaryText,
+      avoidText,
+      maxChars: cfg.diaryMaxChars,
+      hint: rest.join(' ').trim(),
+    });
+
+    const saved = diary2.add(row);
+    const line = '─'.repeat(46);
+    console.log('');
+    console.log(line);
+    console.log('  写好了 · ' + saved.day + ' ' + saved.time + (saved.mood ? '（' + saved.mood + '）' : ''));
+    if (saved.title) console.log('  「' + saved.title + '」');
+    console.log(line);
+    console.log('');
+    console.log('  ' + saved.text.split('\n').join('\n  '));
+    console.log('');
+    if (saved.tags.length) console.log('  标签：' + saved.tags.join(' / '));
+    console.log('  存到：' + path.join(diary2.dir, saved.day + '.md'));
+    console.log('');
+    return;
+  }
 
   if (cmd === 'add') {
     const text = rest.join(' ').trim();
@@ -235,6 +288,7 @@ function main() {
 
   console.log(`日记本 · ${dir}
 用法：
+  node src/diary.js auto [--config ../config.json]   ★让她自己写一条
   node src/diary.js add "正文" [--mood 高兴] [--title 标题] [--tags a,b]
   node src/diary.js list [-n 5]
   node src/diary.js day 2026-10-19
@@ -244,4 +298,6 @@ function main() {
 
 // 直接 node src/diary.js 跑的时候才进 CLI；被 import 时什么都不做
 const invokedDirectly = process.argv[1] && /(^|[\\/])diary\.js$/.test(process.argv[1]);
-if (invokedDirectly) main();
+if (invokedDirectly) {
+  main().catch((e) => { console.error('出错了：' + (e?.message || e)); process.exitCode = 1; });
+}

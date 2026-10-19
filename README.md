@@ -214,8 +214,29 @@
 
 记忆是「关于你的事」，日记是「她自己的一天」。
 
+**她自己写，你只负责看** — 双击 `tools/写日记.bat` 就行：
+
+```
+──────────────────────────────────────────────
+  写好了 · 2026-10-19 20:02（有点乐）
+  「翻出半瓶酸奶」
+──────────────────────────────────────────────
+
+  冰箱最里头翻出半瓶酸奶，保质期就到今天。喝了，凉的，还挺稠。
+  居然没坏，赚了。
+
+  标签：吃 / 小事
+  存到：data/diary/2026-10-19.md
+```
+
+它会读**角色卡 + 她记得的人 + 今天聊过的话 + 最近几篇日记**，
+再生成一条新的 —— 而且会避开已经写过的角度，不会天天"今天真是充实的一天"。
+
+想自己手打：`写日记.bat 手动`。想只看：双击 `tools/看日记.bat`。
+
 ```bash
-# 不写代码也能用
+# 命令行同一件事
+node src/diary.js auto          # 让她自己写一条（要 config.json 里有 apiKey）
 node src/diary.js add "今天把花挪到窗边了，苞鼓了一点" --mood 高兴 --title 挪了位置
 
 # 写进 data/diary/index.jsonl（一条一行，只追加）
@@ -224,8 +245,19 @@ node src/diary.js add "今天把花挪到窗边了，苞鼓了一点" --mood 高
 
 ```js
 import { Diary } from 'ai-companion/diary';
+import { composeDiary } from 'ai-companion/diary-author';
 
 const diary = new Diary({ dir: './data/diary' });
+
+// ① 她写（调模型，1~4 句，第一人称）
+const row = await composeDiary({
+  apiKey, baseUrl, model,
+  roleText: '……角色卡……',
+  diaryText: diary.context(3),   // 最近的，防重复
+});
+diary.add(row);
+
+// ② 或者你替她记一条
 diary.add({ text: '他说今晚不回来了', mood: '有点闷' });
 
 // 塞进 system prompt 的只有最近 3 条 —— 日记不该长成第二本记忆账本

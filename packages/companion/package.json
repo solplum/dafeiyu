@@ -12,7 +12,8 @@
     "./humanize": "./src/humanize.js",
     "./wake": "./src/wake.js",
     "./onebot": "./src/transport-onebot.js",
-    "./diary": "./src/diary.js"
+    "./diary": "./src/diary.js",
+    "./diary-author": "./src/diary-author.js"
   },
   "bin": {
     "companion": "src/index.js"
@@ -27,7 +28,8 @@
     "start": "node src/index.js --config ./config.json",
     "check": "node src/index.js --check --config ./config.json",
     "dry": "node src/index.js --dry-run --config ./config.json",
-    "diary": "node src/diary.js"
+    "diary": "node src/diary.js",
+    "diary:auto": "node src/diary.js auto"
   },
   "keywords": [
     "qq",

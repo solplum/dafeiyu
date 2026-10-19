@@ -255,6 +255,31 @@ waker.setConfig('group:555', {
 });
 ```
 
+### Diary · 她自己的那一天
+
+记忆写「关于你的事」，日记写「她自己的事」。两个分开存，混在一起只会写成汇报。
+
+```js
+import { Diary } from 'ai-companion/diary';
+import { composeDiary } from 'ai-companion/diary-author';
+
+const diary = new Diary({ dir: './data/diary' });
+
+// 让她自己写一条（读角色卡 + 记忆 + 最近日记，避开写过的角度）
+const row = await composeDiary({
+  apiKey, baseUrl, model,
+  roleText,
+  memoryText: memory.renderRecent(16),
+  diaryText: diary.context(3),
+  avoidText: diary.recent(4).map((r) => r.title).join('\n'),
+});
+diary.add(row);
+```
+
+- 存两份：`index.jsonl`（一条一行，只追加）+ `YYYY-MM-DD.md`（人可以直接翻）
+- `diary.context(3)` 只喂最近 3 条进 prompt —— 日记不该长成第二本记忆账本
+- 命令行：`node src/diary.js auto` 她写 · `add` 你替她记 · `list` / `day` / `stats` 翻
+
 ---
 
 ## 角色卡怎么写
