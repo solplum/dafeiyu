@@ -1,25 +1,29 @@
 @echo off
-chcp 65001 >nul
-title å°é²¸é±¼ Â· çœ‹æ—¥è®°
+chcp 936 >nul
+title Ð¡¾¨Óã ¡¤ ¿´ÈÕ¼Ç
 
-rem åŒå‡»å°±èƒ½ç¿»å¥¹çš„æ—¥è®°ï¼ˆæœ€è¿‘ 5 æ¡ï¼‰
-rem æƒ³çœ‹æŸä¸€å¤©ï¼šè¯¥å¤©åœ¨ packages\companion\data\diary\YYYY-MM-DD.md
+rem Ë«»÷¾ÍÄÜ·­ËýµÄÈÕ¼Ç£¨×î½ü 5 Ìõ£©
+rem Ïë¿´Ä³Ò»Ìì£º¸ÃÌìÔÚ packages\companion\data\diary\YYYY-MM-DD.md
 
 cd /d "%~dp0\.."
 set "DIARY=packages\companion\src\diary.js"
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo æ²¡æ‰¾åˆ° node - å…ˆè·‘ä¸€é tools\å®‰è£….bat
+  echo Ã»ÕÒµ½ node - ÏÈÅÜÒ»±é tools\°²×°.bat
   pause
   exit /b 1
 )
 
 echo.
-echo â”€â”€ æœ€è¿‘ 5 æ¡ â”€â”€
+echo ©¤©¤ ×î½ü 5 Ìõ ©¤©¤
+chcp 65001 >nul
 node "%DIARY%" list -n 5
+chcp 936 >nul
 echo.
-echo â”€â”€ ä¸€å…±å†™äº†å¤šå°‘ â”€â”€
+echo ©¤©¤ Ò»¹²Ð´ÁË¶àÉÙ ©¤©¤
+chcp 65001 >nul
 node "%DIARY%" stats
+chcp 936 >nul
 echo.
 pause

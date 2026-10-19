@@ -1,14 +1,14 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 setlocal EnableDelayedExpansion
-title å°é²¸é±¼ Â· å†™æ—¥è®°
+title Ð¡¾¨Óã ¡¤ Ð´ÈÕ¼Ç
 
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-rem  åŒå‡» = è®©å¥¹è‡ªå·±å†™ä¸€æ¡æ—¥è®°ï¼ˆä¸ç”¨ä½ æ‰“å­—ï¼‰
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+rem  Ë«»÷ = ÈÃËý×Ô¼ºÐ´Ò»ÌõÈÕ¼Ç£¨²»ÓÃÄã´ò×Ö£©
 rem
-rem  æƒ³è‡ªå·±æ‰‹æ‰“ï¼šå†™æ—¥è®°.bat æ‰‹åŠ¨
-rem  æ—¥è®°é»˜è®¤å­˜åœ¨ï¼špackages\companion\data\diary
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+rem  Ïë×Ô¼ºÊÖ´ò£ºÐ´ÈÕ¼Ç.bat ÊÖ¶¯
+rem  ÈÕ¼ÇÄ¬ÈÏ´æÔÚ£ºpackages\companion\data\diary
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 
 cd /d "%~dp0\.."
 set "DIARY=packages\companion\src\diary.js"
@@ -16,78 +16,86 @@ set "CFG=packages\companion\config.json"
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo æ²¡æ‰¾åˆ° node - å…ˆè·‘ä¸€é tools\å®‰è£….bat
+  echo Ã»ÕÒµ½ node - ÏÈÅÜÒ»±é tools\°²×°.bat
   pause
   exit /b 1
 )
 
-rem ç¬¬ä¸€æ¬¡ç”¨ï¼šè‡ªåŠ¨ç”Ÿæˆ config.json + role.mdï¼Œç„¶åŽå¼€è®°äº‹æœ¬è®©ä»–å¡« key
+rem µÚÒ»´ÎÓÃ£º×Ô¶¯Éú³É config.json + role.md£¬È»ºó¿ª¼ÇÊÂ±¾ÈÃËûÌî key
 if not exist "%CFG%" (
   if exist "packages\companion\config.example.json" (
     copy "packages\companion\config.example.json" "%CFG%" >nul
     if not exist "packages\companion\role.md" copy "packages\companion\role.example.md" "packages\companion\role.md" >nul
     echo.
-    echo  ç¬¬ä¸€æ¬¡ç”¨ï¼šå·²ç»å¸®ä½ ç”Ÿæˆäº† config.json
-    echo  æŠŠ apiKey é‚£è¡Œæ¢æˆä½ è‡ªå·±çš„ keyï¼ˆplatform.deepseek.com æ³¨å†Œå°±æœ‰ï¼‰
-    echo  ä¿å­˜ã€å…³æŽ‰è®°äº‹æœ¬ï¼Œå†åŒå‡»ä¸€æ¬¡è¿™ä¸ªæ–‡ä»¶ã€‚
+    echo  µÚÒ»´ÎÓÃ£ºÒÑ¾­°ïÄãÉú³ÉÁË config.json
+    echo  °Ñ apiKey ÄÇÐÐ»»³ÉÄã×Ô¼ºµÄ key£¨platform.deepseek.com ×¢²á¾ÍÓÐ£©
+    echo  ±£´æ¡¢¹Øµô¼ÇÊÂ±¾£¬ÔÙË«»÷Ò»´ÎÕâ¸öÎÄ¼þ¡£
     echo.
     start notepad "%CFG%"
     pause
     exit /b 0
   )
-  echo æ‰¾ä¸åˆ° packages\companion\config.example.json - ä»“åº“ä¸‹è½½ä¸å®Œæ•´
+  echo ÕÒ²»µ½ packages\companion\config.example.json - ²Ö¿âÏÂÔØ²»ÍêÕû
   pause
   exit /b 1
 )
 
-if /i "%~1"=="æ‰‹åŠ¨" goto manual
+if /i "%~1"=="ÊÖ¶¯" goto manual
 
 echo.
-echo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-echo   å†™æ—¥è®° Â· å¥¹è‡ªå·±å†™ï¼Œä½ çœ‹ç€å°±è¡Œ
-echo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+echo ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+echo   Ð´ÈÕ¼Ç ¡¤ Ëý×Ô¼ºÐ´£¬Äã¿´×Å¾ÍÐÐ
+echo ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+chcp 65001 >nul
 node "%DIARY%" auto
+chcp 936 >nul
 if errorlevel 1 (
   echo.
-  echo æ²¡å†™æˆã€‚å¸¸è§åŽŸå› ï¼šapiKey ä¸å¯¹ã€æ²¡ç½‘ã€æˆ–è€…ä½™é¢ç”¨å…‰äº†ã€‚
+  echo Ã»Ð´³É¡£³£¼ûÔ­Òò£ºapiKey ²»¶Ô¡¢Ã»Íø¡¢»òÕßÓà¶îÓÃ¹âÁË¡£
   pause
   exit /b 1
 )
 
 echo.
-echo â”€â”€ æœ€è¿‘ 3 æ¡ â”€â”€
+echo ©¤©¤ ×î½ü 3 Ìõ ©¤©¤
+chcp 65001 >nul
 node "%DIARY%" list -n 3
+chcp 936 >nul
 echo.
 pause
 exit /b 0
 
 :manual
 echo.
-echo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-echo   æ‰‹åŠ¨å†™ Â· å†™å®Œå›žè½¦ï¼Œå¤šå†™å‡ æ¡ä¹Ÿè¡Œ
-echo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+echo ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+echo   ÊÖ¶¯Ð´ ¡¤ Ð´Íê»Ø³µ£¬¶àÐ´¼¸ÌõÒ²ÐÐ
+echo ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 echo.
 
 :again
 set "TEXT="
 set "MOOD="
 set "TITLE="
-set /p TEXT=ä»Šå¤©å‘ç”Ÿäº†ä»€ä¹ˆï¼š
+set /p TEXT=½ñÌì·¢ÉúÁËÊ²Ã´£º
 if "!TEXT!"=="" (
-  echo ç©ºçš„å°±ä¸å†™
+  echo ¿ÕµÄ¾Í²»Ð´
   goto end
 )
-set /p MOOD=å¿ƒæƒ…ï¼ˆä¸¤ä¸‰ä¸ªå­—ï¼Œå¯ç•™ç©ºï¼‰ï¼š
-set /p TITLE=æ ‡é¢˜ï¼ˆå¯ç•™ç©ºï¼‰ï¼š
+set /p MOOD=ÐÄÇé£¨Á½Èý¸ö×Ö£¬¿ÉÁô¿Õ£©£º
+set /p TITLE=±êÌâ£¨¿ÉÁô¿Õ£©£º
 
+chcp 65001 >nul
 node "%DIARY%" add "!TEXT!" --mood "!MOOD!" --title "!TITLE!"
+chcp 936 >nul
 echo.
-set /p MORE=å†å†™ä¸€æ¡ï¼Ÿ(y/N)ï¼š
+set /p MORE=ÔÙÐ´Ò»Ìõ£¿(y/N)£º
 if /i "!MORE!"=="y" goto again
 
 echo.
-echo â”€â”€ æœ€è¿‘ 3 æ¡ â”€â”€
+echo ©¤©¤ ×î½ü 3 Ìõ ©¤©¤
+chcp 65001 >nul
 node "%DIARY%" list -n 3
+chcp 936 >nul
 
 :end
 echo.

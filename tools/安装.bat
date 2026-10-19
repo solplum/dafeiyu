@@ -1,54 +1,54 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 setlocal enabledelayedexpansion
-title å°é²¸é±¼ Â· ä¸€é”®å®‰è£…
+title Ð¡¾¨Óã ¡¤ Ò»¼ü°²×°
 
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-rem  å°é²¸é±¼å®‰è£…å™¨ â€”â€” æŠŠ qq-bridge è£…å¥½ã€ä¾èµ–è£…å¥½ã€é…ç½®ç”Ÿæˆå¥½
-rem  ä½œè€…ï¼šå¹³å®‰ï¼ˆpinganbbOvOï¼‰
-rem  ä»“åº“ï¼šgithub.com/pinganbbOvO/ai-companion-kit
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+rem  Ð¡¾¨Óã°²×°Æ÷ ¡ª¡ª °Ñ qq-bridge ×°ºÃ¡¢ÒÀÀµ×°ºÃ¡¢ÅäÖÃÉú³ÉºÃ
+rem  ×÷Õß£ºÆ½°²£¨pinganbbOvO£©
+rem  ²Ö¿â£ºgithub.com/pinganbbOvO/ai-companion-kit
 rem
-rem  è¿™ä¸ªè„šæœ¬åšçš„äº‹æƒ…ï¼š
-rem    â‘  æ£€æŸ¥æœ‰æ²¡æœ‰ Node.jsï¼ˆæ²¡æœ‰å°±è‡ªåŠ¨ä¸‹ä¾¿æºç‰ˆï¼‰
-rem    â‘¡ ä»Ž GitHub ä¸‹è½½ qq-bridge
-rem    â‘¢ è·‘ npm install
-rem    â‘£ ç”Ÿæˆ config.json æ¨¡æ¿
-rem    â‘¤ æ‰“å¼€è®°äº‹æœ¬è®©ä½ å¡«ä¸‰ä¸ªå€¼
+rem  Õâ¸ö½Å±¾×öµÄÊÂÇé£º
+rem    ¢Ù ¼ì²éÓÐÃ»ÓÐ Node.js£¨Ã»ÓÐ¾Í×Ô¶¯ÏÂ±ãÐ¯°æ£©
+rem    ¢Ú ´Ó GitHub ÏÂÔØ qq-bridge
+rem    ¢Û ÅÜ npm install
+rem    ¢Ü Éú³É config.json Ä£°å
+rem    ¢Ý ´ò¿ª¼ÇÊÂ±¾ÈÃÄãÌîÈý¸öÖµ
 rem
-rem  å®ƒã€ä¸ä¼šã€‘ï¼š
-rem    Â· ä¸ä¼šè£… DSH / SnowLumaï¼ˆé‚£ä¸¤ä¸ªä½ å¾—è‡ªå·±è£…ï¼‰
-rem    Â· ä¸ä¼šåŠ¨ä½ çŽ°æœ‰çš„ä»»ä½•æ–‡ä»¶ï¼ˆéƒ½æ”¾åœ¨æ–°ç›®å½•é‡Œï¼‰
-rem    Â· ä¸ä¼šè”ç½‘å‘ä»»ä½•ä¸œè¥¿å‡ºåŽ»
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+rem  Ëü¡¾²»»á¡¿£º
+rem    ¡¤ ²»»á×° DSH / SnowLuma£¨ÄÇÁ½¸öÄãµÃ×Ô¼º×°£©
+rem    ¡¤ ²»»á¶¯ÄãÏÖÓÐµÄÈÎºÎÎÄ¼þ£¨¶¼·ÅÔÚÐÂÄ¿Â¼Àï£©
+rem    ¡¤ ²»»áÁªÍø·¢ÈÎºÎ¶«Î÷³öÈ¥
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 
 echo.
-echo  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-echo  â•‘           å°é²¸é±¼ Â· ä¸€é”®å®‰è£…ï¼ˆqq-bridgeï¼‰             â•‘
-echo  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+echo  ¨X¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨[
+echo  ¨U           Ð¡¾¨Óã ¡¤ Ò»¼ü°²×°£¨qq-bridge£©             ¨U
+echo  ¨^¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨a
 echo.
 
-rem â”€â”€ é€‰å®‰è£…ç›®å½• â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ Ñ¡°²×°Ä¿Â¼ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 set "TARGET=%~1"
 if "%TARGET%"=="" (
-    echo  è£…åˆ°å“ªä¸ªæ–‡ä»¶å¤¹ï¼Ÿ
-    echo  ï¼ˆç›´æŽ¥å›žè½¦ = D:\qq-bridgeï¼ŒæŽ¨èï¼‰
+    echo  ×°µ½ÄÄ¸öÎÄ¼þ¼Ð£¿
+    echo  £¨Ö±½Ó»Ø³µ = D:\qq-bridge£¬ÍÆ¼ö£©
     echo.
-    set /p TARGET= è·¯å¾„ï¼š
+    set /p TARGET= Â·¾¶£º
 )
 if "%TARGET%"=="" set "TARGET=D:\qq-bridge"
 
 echo.
-echo  å®‰è£…åˆ°ï¼š!TARGET!
+echo  °²×°µ½£º!TARGET!
 echo.
 
-rem â”€â”€ â‘  æ£€æŸ¥ Node.jsï¼ˆæ²¡æœ‰å°±è‡ªåŠ¨ä¸‹ä¾¿æºç‰ˆï¼Œä¸å†™æ³¨å†Œè¡¨ï¼‰â”€â”€â”€â”€â”€â”€
-echo  [1/5] æ£€æŸ¥ Node.js...
+rem ©¤©¤ ¢Ù ¼ì²é Node.js£¨Ã»ÓÐ¾Í×Ô¶¯ÏÂ±ãÐ¯°æ£¬²»Ð´×¢²á±í£©©¤©¤©¤©¤©¤©¤
+echo  [1/5] ¼ì²é Node.js...
 where node >nul 2>nul
 if not errorlevel 1 goto :node_ready
 
 echo.
-echo        ç³»ç»Ÿé‡Œæ²¡æœ‰ Node.js
-echo        è‡ªåŠ¨ä¸‹è½½ä¾¿æºç‰ˆï¼ˆçº¦ 30MBï¼Œåªç»™è¿™å¥—ä¸œè¥¿ç”¨ï¼‰â€¦
+echo        ÏµÍ³ÀïÃ»ÓÐ Node.js
+echo        ×Ô¶¯ÏÂÔØ±ãÐ¯°æ£¨Ô¼ 30MB£¬Ö»¸øÕâÌ×¶«Î÷ÓÃ£©¡­
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-node.ps1" -Dest "%~dp0_runtime\node"
 if errorlevel 1 goto :node_failed
@@ -62,15 +62,15 @@ goto :node_npm
 
 :node_failed
 echo.
-echo  â•³ ä¾¿æºç‰ˆä¹Ÿæ²¡ä¸‹ä¸‹æ¥ï¼ˆç½‘ç»œé—®é¢˜ï¼‰
+echo  ¨w ±ãÐ¯°æÒ²Ã»ÏÂÏÂÀ´£¨ÍøÂçÎÊÌâ£©
 echo.
-echo  ä¸¤ä¸ªåŠžæ³•ï¼Œä»»é€‰ä¸€ä¸ªï¼š
-echo    A. å†è·‘ä¸€æ¬¡æœ¬è„šæœ¬ï¼ˆé•œåƒå¶å°”æŠ½é£Žï¼‰
-echo    B. è‡ªå·±åŽ»å®˜ç½‘è£…ï¼š
-echo       1. æµè§ˆå™¨æœç´¢ "Node.js å®˜ç½‘"
-echo       2. ä¸‹è½½ LTS ç‰ˆæœ¬ï¼ˆå·¦è¾¹é‚£ä¸ªæŒ‰é’®ï¼‰
-echo       3. åŒå‡»å®‰è£…ï¼Œä¸€è·¯"ä¸‹ä¸€æ­¥"
-echo       4. â˜…è£…å®Œé‡å¯ä¸€æ¬¡ç”µè„‘â˜…
+echo  Á½¸ö°ì·¨£¬ÈÎÑ¡Ò»¸ö£º
+echo    A. ÔÙÅÜÒ»´Î±¾½Å±¾£¨¾µÏñÅ¼¶û³é·ç£©
+echo    B. ×Ô¼ºÈ¥¹ÙÍø×°£º
+echo       1. ä¯ÀÀÆ÷ËÑË÷ "Node.js ¹ÙÍø"
+echo       2. ÏÂÔØ LTS °æ±¾£¨×ó±ßÄÇ¸ö°´Å¥£©
+echo       3. Ë«»÷°²×°£¬Ò»Â·"ÏÂÒ»²½"
+echo       4. ¡ï×°ÍêÖØÆôÒ»´ÎµçÄÔ¡ï
 echo.
 pause
 exit /b 1
@@ -78,9 +78,9 @@ exit /b 1
 :node_npm
 where npm >nul 2>nul
 if errorlevel 1 (
-    echo  â•³ æœ‰ node ä½†æ²¡æ‰¾åˆ° npm âœ— è¿™ä¸ª Node ä¸å®Œæ•´
-    echo    å¦‚æžœä½ ç”¨çš„æ˜¯ç³»ç»Ÿé‡Œè£…çš„é‚£ä¸ªï¼šå¸è½½åŽé‡è£…ä¸€æ¬¡
-    echo    å¦‚æžœç”¨çš„æ˜¯ä¾¿æºç‰ˆï¼šåˆ æŽ‰ tools\_runtime\node å†è·‘ä¸€æ¬¡è¿™ä¸ªè„šæœ¬
+    echo  ¨w ÓÐ node µ«Ã»ÕÒµ½ npm ¡ª Õâ¸ö Node ²»ÍêÕû
+    echo    Èç¹ûÄãÓÃµÄÊÇÏµÍ³Àï×°µÄÄÇ¸ö£ºÐ¶ÔØºóÖØ×°Ò»´Î
+    echo    Èç¹ûÓÃµÄÊÇ±ãÐ¯°æ£ºÉ¾µô tools\_runtime\node ÔÙÅÜÒ»´ÎÕâ¸ö½Å±¾
     pause
     exit /b 1
 )
@@ -89,18 +89,18 @@ goto :node_done
 
 :node_done
 
-rem â”€â”€ â‘¡ ä¸‹è½½ qq-bridge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ ¢Ú ÏÂÔØ qq-bridge ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 echo.
-echo  [2/5] ä¸‹è½½ qq-bridge...
+echo  [2/5] ÏÂÔØ qq-bridge...
 
 if exist "!TARGET!\src\bridge.js" (
-    echo        å·²ç»è£…è¿‡äº†ï¼Œè·³è¿‡ä¸‹è½½
+    echo        ÒÑ¾­×°¹ýÁË£¬Ìø¹ýÏÂÔØ
     goto :skip_download
 )
 
 if exist "!TARGET!" (
-    echo        âš ï¸ ç›®å½•å·²å­˜åœ¨ä½†ä¸æ˜¯å®Œæ•´çš„ qq-bridge
-    echo        æ¢ä¸ªç›®å½•ï¼Œæˆ–è€…å…ˆæŠŠå®ƒåˆ æŽ‰
+    echo        !! Ä¿Â¼ÒÑ´æÔÚµ«²»ÊÇÍêÕûµÄ qq-bridge
+    echo        »»¸öÄ¿Â¼£¬»òÕßÏÈ°ÑËüÉ¾µô
     pause
     exit /b 1
 )
@@ -109,111 +109,111 @@ mkdir "!TARGET!" 2>nul
 set "ZIP=%TEMP%\qq-bridge-%RANDOM%.zip"
 set "URL=https://gh-proxy.com/https://github.com/Derpyu520/qq-bridge/archive/refs/heads/main.zip"
 
-echo        æ­£åœ¨ä¸‹è½½ï¼ˆå¯èƒ½è¦ä¸€ä¸¤åˆ†é’Ÿï¼‰...
+echo        ÕýÔÚÏÂÔØ£¨¿ÉÄÜÒªÒ»Á½·ÖÖÓ£©...
 powershell -NoProfile -Command ^
-  "try { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest '%URL%' -OutFile '%ZIP%' -UseBasicParsing -TimeoutSec 300; Write-Host '        OK  ä¸‹è½½å®Œæˆ' } catch { Write-Host ('        X ä¸‹è½½å¤±è´¥ï¼š' + $_.Exception.Message); exit 1 }"
+  "try { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest '%URL%' -OutFile '%ZIP%' -UseBasicParsing -TimeoutSec 300; Write-Host '        OK  ÏÂÔØÍê³É' } catch { Write-Host ('        X ÏÂÔØÊ§°Ü£º' + $_.Exception.Message); exit 1 }"
 if errorlevel 1 (
     echo.
-    echo  â•³ ä¸‹è½½å¤±è´¥
+    echo  ¨w ÏÂÔØÊ§°Ü
     echo.
-    echo  å¯èƒ½æ˜¯ç½‘ç»œé—®é¢˜ã€‚ä½ å¯ä»¥æ‰‹åŠ¨æ¥ï¼š
-    echo    1. æµè§ˆå™¨æ‰“å¼€ gh-proxy.com/https://github.com/Derpyu520/qq-bridge
-    echo    2. ç»¿è‰² Code æŒ‰é’® â†’ Download ZIP
-    echo    3. è§£åŽ‹åˆ° !TARGET!
-    echo    4. å†è·‘ä¸€æ¬¡è¿™ä¸ªè„šæœ¬ï¼ˆå®ƒä¼šè·³è¿‡ä¸‹è½½ï¼‰
+    echo  ¿ÉÄÜÊÇÍøÂçÎÊÌâ¡£Äã¿ÉÒÔÊÖ¶¯À´£º
+    echo    1. ä¯ÀÀÆ÷´ò¿ª gh-proxy.com/https://github.com/Derpyu520/qq-bridge
+    echo    2. ÂÌÉ« Code °´Å¥ ¡ú Download ZIP
+    echo    3. ½âÑ¹µ½ !TARGET!
+    echo    4. ÔÙÅÜÒ»´ÎÕâ¸ö½Å±¾£¨Ëü»áÌø¹ýÏÂÔØ£©
     echo.
     pause
     exit /b 1
 )
 
-echo        æ­£åœ¨è§£åŽ‹...
+echo        ÕýÔÚ½âÑ¹...
 powershell -NoProfile -Command ^
   "Expand-Archive -Path '%ZIP%' -DestinationPath '%TEMP%\qqb-tmp' -Force; $d = Get-ChildItem '%TEMP%\qqb-tmp' -Directory | Select-Object -First 1; Copy-Item ($d.FullName + '\*') '!TARGET!' -Recurse -Force"
 if errorlevel 1 (
-    echo  â•³ è§£åŽ‹å¤±è´¥
+    echo  ¨w ½âÑ¹Ê§°Ü
     pause
     exit /b 1
 )
 del "%ZIP%" >nul 2>nul
 rmdir /s /q "%TEMP%\qqb-tmp" >nul 2>nul
-echo        OK  è§£åŽ‹å®Œæˆ
+echo        OK  ½âÑ¹Íê³É
 
 :skip_download
 
-rem â”€â”€ â‘¢ npm install â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ ¢Û npm install ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 echo.
-echo  [3/5] å®‰è£…ä¾èµ–ï¼ˆnpm installï¼‰...
-echo        è¿™ä¸€æ­¥æœ€æ…¢ï¼Œå¯èƒ½ä¸‰äº”åˆ†é’Ÿï¼Œåˆ«å…³çª—å£
+echo  [3/5] °²×°ÒÀÀµ£¨npm install£©...
+echo        ÕâÒ»²½×îÂý£¬¿ÉÄÜÈýÎå·ÖÖÓ£¬±ð¹Ø´°¿Ú
 echo.
 pushd "!TARGET!"
 call npm install --no-audit --no-fund
 if errorlevel 1 (
     echo.
-    echo  âš ï¸ npm install æŠ¥é”™äº†
+    echo  !! npm install ±¨´íÁË
     echo.
-    echo  å†è¯•ä¸€æ¬¡é€šå¸¸å°±å¥½äº†ï¼ˆç½‘ç»œé—®é¢˜ï¼‰ã€‚å¦‚æžœè¿˜ä¸è¡Œï¼š
+    echo  ÔÙÊÔÒ»´ÎÍ¨³£¾ÍºÃÁË£¨ÍøÂçÎÊÌâ£©¡£Èç¹û»¹²»ÐÐ£º
     echo    cd /d !TARGET!
     echo    npm install --registry=https://registry.npmmirror.com
     echo.
-    echo  è¦æˆ‘å¸®ä½ æ¢æˆå›½å†…é•œåƒé‡è¯•å—ï¼Ÿ
-    choice /c YN /m "       é‡è¯•"
+    echo  ÒªÎÒ°ïÄã»»³É¹úÄÚ¾µÏñÖØÊÔÂð£¿
+    choice /c YN /m "       ÖØÊÔ"
     if !errorlevel!==1 (
         call npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
     )
 )
 popd
-echo        OK  ä¾èµ–è£…å¥½äº†
+echo        OK  ÒÀÀµ×°ºÃÁË
 
-rem â”€â”€ â‘£ ç”Ÿæˆ config.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ ¢Ü Éú³É config.json ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 echo.
-echo  [4/5] ç”Ÿæˆé…ç½®æ–‡ä»¶...
+echo  [4/5] Éú³ÉÅäÖÃÎÄ¼þ...
 
 if exist "!TARGET!\config.json" (
-    echo        å·²æœ‰ config.jsonï¼Œä¸è¦†ç›–
+    echo        ÒÑÓÐ config.json£¬²»¸²¸Ç
     goto :skip_config
 )
 if not exist "!TARGET!\config.example.json" (
-    echo        âš ï¸ æ²¡æ‰¾åˆ° config.example.json âœ— ä¸‹è½½å¯èƒ½ä¸å®Œæ•´
+    echo        !! Ã»ÕÒµ½ config.example.json£¬ÏÂÔØ¿ÉÄÜ²»ÍêÕû
     goto :skip_config
 )
 
 copy "!TARGET!\config.example.json" "!TARGET!\config.json" >nul
-echo        OK  å·²ç”Ÿæˆ config.json
+echo        OK  ÒÑÉú³É config.json
 
 :skip_config
 
-rem â”€â”€ â‘¤ æ‰“å¼€è®°äº‹æœ¬ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ ¢Ý ´ò¿ª¼ÇÊÂ±¾ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 echo.
-echo  [5/5] æ‰“å¼€é…ç½®æ–‡ä»¶ï¼Œä½ è¦å¡«ä¸‰ä¸ªåœ°æ–¹
+echo  [5/5] ´ò¿ªÅäÖÃÎÄ¼þ£¬ÄãÒªÌîÈý¸öµØ·½
 echo.
-echo   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-echo    â‘  ownerQQ          â†’  æ”¹æˆã€ä½ çš„ã€‘QQ å·
-echo    â‘¡ allow.private    â†’  é‡Œé¢ä¸¤ä¸ªæ•°å­—ï¼Œä¸€ä¸ªæ˜¯ä½ çš„å·ï¼Œ
-echo                           å¦ä¸€ä¸ªæ”¹æˆã€å¥¹ã€‘çš„ QQ å·
-echo    â‘¢ snowluma.accessToken
-echo                       â†’  å¡« SnowLuma ç•Œé¢é‡Œé‚£ä¸²"è®¿é—®ä»¤ç‰Œ"
-echo   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+echo   ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+echo    ¢Ù ownerQQ          ¡ú  ¸Ä³É¡¾ÄãµÄ¡¿QQ ºÅ
+echo    ¢Ú allow.private    ¡ú  ÀïÃæÁ½¸öÊý×Ö£¬Ò»¸öÊÇÄãµÄºÅ£¬
+echo                           ÁíÒ»¸ö¸Ä³É¡¾Ëý¡¿µÄ QQ ºÅ
+echo    ¢Û snowluma.accessToken
+echo                       ¡ú  Ìî SnowLuma ½çÃæÀïÄÇ´®"·ÃÎÊÁîÅÆ"
+echo   ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 echo.
-echo   æ”¹å®Œä¿å­˜ï¼ˆCtrl+Sï¼‰ï¼Œå…³æŽ‰è®°äº‹æœ¬ï¼Œç„¶åŽæŒ‰ä»»æ„é”®ç»§ç»­
+echo   ¸ÄÍê±£´æ£¨Ctrl+S£©£¬¹Øµô¼ÇÊÂ±¾£¬È»ºó°´ÈÎÒâ¼ü¼ÌÐø
 echo.
 pause
 start notepad "!TARGET!\config.json"
 
 echo.
-echo  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-echo  â•‘  è£…å¥½äº†                                              â•‘
-echo  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+echo  ¨X¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨[
+echo  ¨U  ×°ºÃÁË                                              ¨U
+echo  ¨^¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨a
 echo.
-echo  æŽ¥ä¸‹æ¥ï¼š
+echo  ½ÓÏÂÀ´£º
 echo.
-echo    â‘  ç¡®è®¤ SnowLuma å·²ç»ç™»å½•ï¼ˆå®ƒé‚£ä¸ªçª—å£è¿˜å¼€ç€å—ï¼Ÿï¼‰
-echo    â‘¡ ç¡®è®¤ DeepSeek Harness å·²ç»æ‰“å¼€
-echo    â‘¢ åŒå‡»è¿™ä¸ªæ–‡ä»¶å¤¹é‡Œçš„  å¯åŠ¨.bat
+echo    ¢Ù È·ÈÏ SnowLuma ÒÑ¾­µÇÂ¼£¨ËüÄÇ¸ö´°¿Ú»¹¿ª×ÅÂð£¿£©
+echo    ¢Ú È·ÈÏ DeepSeek Harness ÒÑ¾­´ò¿ª
+echo    ¢Û Ë«»÷Õâ¸öÎÄ¼þ¼ÐÀïµÄ  Æô¶¯.bat
 echo.
-echo  ï¼ˆç³»ç»Ÿé‡Œæ²¡æœ‰ Node çš„è¯ï¼Œå®‰è£…å™¨å·²ç»ä¸‹äº†ä¸€ä»½ä¾¿æºç‰ˆåœ¨
-echo    tools\_runtime\nodeï¼Œä¸ç”¨å¦å¤–è£…ï¼Œä¹Ÿä¸ä¼šè¿›ç³»ç»ŸçŽ¯å¢ƒå˜é‡ï¼‰
+echo  £¨ÏµÍ³ÀïÃ»ÓÐ Node µÄ»°£¬°²×°Æ÷ÒÑ¾­ÏÂÁËÒ»·Ý±ãÐ¯°æÔÚ
+echo    tools\_runtime\node£¬²»ÓÃÁíÍâ×°£¬Ò²²»»á½øÏµÍ³»·¾³±äÁ¿£©
 echo.
-echo  è£…åœ¨å“ªï¼š !TARGET!
+echo  ×°ÔÚÄÄ£º !TARGET!
 echo.
 pause
 endlocal

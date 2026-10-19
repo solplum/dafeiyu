@@ -1,60 +1,62 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 setlocal
-title å°é²¸é±¼ Â· è¿è¡Œä¸­ï¼ˆåˆ«å…³è¿™ä¸ªçª—å£ï¼‰
+title Ğ¡¾¨Óã ¡¤ ÔËĞĞÖĞ£¨±ğ¹ØÕâ¸ö´°¿Ú£©
 
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-rem  å¯åŠ¨ qq-bridge
-rem  è¿™ä¸ªçª—å£ã€è¦ä¸€ç›´å¼€ç€ã€‘âœ— å…³äº†å°±ç­‰äºå¥¹ä¸‹çº¿äº†
-rem â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+rem  Æô¶¯ qq-bridge
+rem  Õâ¸ö´°¿Ú¡¾ÒªÒ»Ö±¿ª×Å¡¿¡ï ¹ØÁË¾ÍµÈÓÚËıÏÂÏßÁË
+rem ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 
 cd /d "%~dp0"
 
 echo.
-echo  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-echo  â•‘                  å°é²¸é±¼ Â· å¯åŠ¨ä¸­                     â•‘
-echo  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+echo  ¨X¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨[
+echo  ¨U                  Ğ¡¾¨Óã ¡¤ Æô¶¯ÖĞ                     ¨U
+echo  ¨^¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨a
 echo.
 
-rem â”€â”€ æ£€æŸ¥å‰ç½® â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+rem ©¤©¤ ¼ì²éÇ°ÖÃ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
 if not exist "config.json" (
-    echo  â•³ æ²¡æœ‰ config.json
-    echo    å…ˆè·‘ä¸€æ¬¡ å®‰è£….bat
+    echo  ¨w Ã»ÓĞ config.json
+    echo    ÏÈÅÜÒ»´Î °²×°.bat
     pause
     exit /b 1
 )
 
-echo  æ£€æŸ¥å‰ç½®æœåŠ¡...
+echo  ¼ì²éÇ°ÖÃ·şÎñ...
 echo.
 
-rem SnowLumaï¼ˆ3000 ç«¯å£ï¼‰
+rem SnowLuma£¨3000 ¶Ë¿Ú£©
 powershell -NoProfile -Command ^
-  "if ((Test-NetConnection 127.0.0.1 -Port 3000 -WarningAction SilentlyContinue).TcpTestSucceeded) { Write-Host '    OK   SnowLumaï¼ˆQQ è¿æ¥ï¼‰' } else { Write-Host '    XX   SnowLuma æ²¡åœ¨è·‘'; Write-Host '         å»åŒå‡»å®ƒçš„ launcher.batï¼Œæ‰«ç ç™»å½•'; exit 1 }"
+  "if ((Test-NetConnection 127.0.0.1 -Port 3000 -WarningAction SilentlyContinue).TcpTestSucceeded) { Write-Host '    OK   SnowLuma£¨QQ Á¬½Ó£©' } else { Write-Host '    XX   SnowLuma Ã»ÔÚÅÜ'; Write-Host '         È¥Ë«»÷ËüµÄ launcher.bat£¬É¨ÂëµÇÂ¼'; exit 1 }"
 if errorlevel 1 (
     echo.
     pause
     exit /b 1
 )
 
-rem DeepSeek Harnessï¼ˆ43129 ç«¯å£ï¼‰
+rem DeepSeek Harness£¨43129 ¶Ë¿Ú£©
 powershell -NoProfile -Command ^
-  "if ((Test-NetConnection 127.0.0.1 -Port 43129 -WarningAction SilentlyContinue).TcpTestSucceeded) { Write-Host '    OK   DeepSeek Harnessï¼ˆå¤§è„‘ï¼‰' } else { Write-Host '    ??   DeepSeek Harness å¥½åƒæ²¡å¼€'; Write-Host '         å¦‚æœå¥¹ä¸ç†ä½ ï¼Œå…«æˆæ˜¯è¿™ä¸ªåŸå› ' }"
+  "if ((Test-NetConnection 127.0.0.1 -Port 43129 -WarningAction SilentlyContinue).TcpTestSucceeded) { Write-Host '    OK   DeepSeek Harness£¨´óÄÔ£©' } else { Write-Host '    !!   DeepSeek Harness ºÃÏñÃ»¿ª'; Write-Host '         Èç¹ûËı²»ÀíÄã£¬°Ë³ÉÊÇÕâ¸öÔ­Òò' }"
 
 echo.
-echo  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-echo   æ­£åœ¨å¯åŠ¨ã€‚ä¸‹é¢ä¼šåˆ·å¾ˆå¤šè¡Œå­—ï¼Œé‚£æ˜¯æ­£å¸¸çš„ã€‚
+echo  ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+echo   ÕıÔÚÆô¶¯¡£ÏÂÃæ»áË¢ºÜ¶àĞĞ×Ö£¬ÄÇÊÇÕı³£µÄ¡£
 echo.
-echo   â˜… è¿™ä¸ªçª—å£ä¸è¦å…³ â˜…
-echo   æœ€å°åŒ–å®ƒï¼Œå» QQ é‡Œè·Ÿå¥¹è¯´è¯å°±è¡Œ
+echo   ¡ï Õâ¸ö´°¿Ú²»Òª¹Ø ¡ï
+echo   ×îĞ¡»¯Ëü£¬È¥ QQ Àï¸úËıËµ»°¾ÍĞĞ
 echo.
-echo   æƒ³è®©å¥¹ä¸‹çº¿ï¼šç›´æ¥å…³æ‰è¿™ä¸ªçª—å£
-echo  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+echo   ÏëÈÃËıÏÂÏß£ºÖ±½Ó¹ØµôÕâ¸ö´°¿Ú
+echo  ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 echo.
 
+chcp 65001 >nul
 node src\bridge.js
+chcp 936 >nul
 
 echo.
-echo  å¥¹ä¸‹çº¿äº†ã€‚
+echo  ËıÏÂÏßÁË¡£
 echo.
 pause
 endlocal
