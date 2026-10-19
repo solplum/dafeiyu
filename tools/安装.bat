@@ -9,7 +9,7 @@ rem  作者：平安（pinganbbOvO）
 rem  仓库：github.com/pinganbbOvO/ai-companion-kit
 rem
 rem  这个脚本做的事情：
-rem    ① 检查有没有 Node.js
+rem    ① 检查有没有 Node.js（没有就自动下便携版）
 rem    ② 从 GitHub 下载 qq-bridge
 rem    ③ 跑 npm install
 rem    ④ 生成 config.json 模板
@@ -41,33 +41,53 @@ echo.
 echo  安装到：!TARGET!
 echo.
 
-rem ── ① 检查 Node.js ────────────────────────────────────────
+rem ── ① 检查 Node.js（没有就自动下便携版，不写注册表）──────
 echo  [1/5] 检查 Node.js...
 where node >nul 2>nul
-if errorlevel 1 (
-    echo.
-    echo  ╳ 没找到 Node.js
-    echo.
-    echo  请先装它，然后再跑一次这个脚本：
-    echo    1. 浏览器搜索 "Node.js 官网"
-    echo    2. 下载 LTS 版本（左边那个按钮）
-    echo    3. 双击安装，一路"下一步"
-    echo    4. ★装完重启一次电脑★
-    echo.
-    pause
-    exit /b 1
-)
+if not errorlevel 1 goto :node_ready
+
+echo.
+echo        系统里没有 Node.js
+echo        自动下载便携版（约 30MB，只给这套东西用）…
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-node.ps1" -Dest "%~dp0_runtime\node"
+if errorlevel 1 goto :node_failed
+set "PATH=%~dp0_runtime\node;%PATH%"
+echo.
+
+:node_ready
 for /f "delims=" %%v in ('node -v') do set "NODEV=%%v"
 echo        OK  Node.js !NODEV!
+goto :node_npm
 
+:node_failed
+echo.
+echo  ╳ 便携版也没下下来（网络问题）
+echo.
+echo  两个办法，任选一个：
+echo    A. 再跑一次本脚本（镜像偶尔抽风）
+echo    B. 自己去官网装：
+echo       1. 浏览器搜索 "Node.js 官网"
+echo       2. 下载 LTS 版本（左边那个按钮）
+echo       3. 双击安装，一路"下一步"
+echo       4. ★装完重启一次电脑★
+echo.
+pause
+exit /b 1
+
+:node_npm
 where npm >nul 2>nul
 if errorlevel 1 (
-    echo  ╳ 有 node 但没找到 npm ✗ Node.js 可能装坏了
-    echo    建议卸载后重装一次
+    echo  ╳ 有 node 但没找到 npm ✗ 这个 Node 不完整
+    echo    如果你用的是系统里装的那个：卸载后重装一次
+    echo    如果用的是便携版：删掉 tools\_runtime\node 再跑一次这个脚本
     pause
     exit /b 1
 )
 echo        OK  npm
+goto :node_done
+
+:node_done
 
 rem ── ② 下载 qq-bridge ─────────────────────────────────────
 echo.
@@ -189,6 +209,9 @@ echo.
 echo    ① 确认 SnowLuma 已经登录（它那个窗口还开着吗？）
 echo    ② 确认 DeepSeek Harness 已经打开
 echo    ③ 双击这个文件夹里的  启动.bat
+echo.
+echo  （系统里没有 Node 的话，安装器已经下了一份便携版在
+echo    tools\_runtime\node，不用另外装，也不会进系统环境变量）
 echo.
 echo  装在哪： !TARGET!
 echo.
