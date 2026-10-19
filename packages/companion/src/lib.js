@@ -10,6 +10,7 @@
  *   const brain  = new Brain({ apiKey, role, memory });  // 大脑
  *   const human  = new Humanizer();                      // 拟人化发送
  *   const waker  = new Waker({ names: ['小鱼'] });        // 唤醒判定
+ *   const diary  = new Diary({ dir: './data/diary' });   // 日记本
  *
  * 也可以只要一样：
  *
@@ -34,5 +35,6 @@ export { Role } from './role.js';
 export { Brain } from './brain.js';
 export { Humanizer } from './humanize.js';
 export { Waker } from './wake.js';
+export { Diary } from './diary.js';
 export { OneBot, segsToText } from './transport-onebot.js';
 export { loadConfig, handleTurn } from './index.js';

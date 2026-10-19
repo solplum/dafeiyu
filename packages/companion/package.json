@@ -11,7 +11,8 @@
     "./brain": "./src/brain.js",
     "./humanize": "./src/humanize.js",
     "./wake": "./src/wake.js",
-    "./onebot": "./src/transport-onebot.js"
+    "./onebot": "./src/transport-onebot.js",
+    "./diary": "./src/diary.js"
   },
   "bin": {
     "companion": "src/index.js"
@@ -25,7 +26,8 @@
   "scripts": {
     "start": "node src/index.js --config ./config.json",
     "check": "node src/index.js --check --config ./config.json",
-    "dry": "node src/index.js --dry-run --config ./config.json"
+    "dry": "node src/index.js --dry-run --config ./config.json",
+    "diary": "node src/diary.js"
   },
   "keywords": [
     "qq",

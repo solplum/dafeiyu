@@ -61,7 +61,8 @@
 
 | 文件 | 干什么 |
 |---|---|
-| **[`tools/安装.bat`](tools/安装.bat)** | 下载 qq-bridge → 装依赖 → 生成 `config.json` → 打开记事本让你填三个值 |
+| **[`tools/安装.bat`](tools/安装.bat)** | 检查 Node（没有就自动下便携版）→ 下载 qq-bridge → 装依赖 → 生成 `config.json` → 打开记事本让你填三个值 |
+| **[`tools/install-node.ps1`](tools/install-node.ps1)** | 单独下 Node 便携版（约 30MB，落在 `tools/_runtime/node`，不写注册表、不进系统环境变量） |
 | **[`tools/启动.bat`](tools/启动.bat)** | 检查前置 → 启动 qq-bridge（复制进 qq-bridge 目录后双击） |
 
 它**不会**做的事：装 DSH / SnowLuma、碰你现有的文件、联网往外发任何东西。
@@ -209,6 +210,28 @@
 }
 ```
 
+**有日记本了**
+
+记忆是「关于你的事」，日记是「她自己的一天」。
+
+```bash
+# 不写代码也能用
+node src/diary.js add "今天把花挪到窗边了，苞鼓了一点" --mood 高兴 --title 挪了位置
+
+# 写进 data/diary/index.jsonl（一条一行，只追加）
+# 同时生成 data/diary/2026-10-19.md（人可以直接翻）
+```
+
+```js
+import { Diary } from 'ai-companion/diary';
+
+const diary = new Diary({ dir: './data/diary' });
+diary.add({ text: '他说今晚不回来了', mood: '有点闷' });
+
+// 塞进 system prompt 的只有最近 3 条 —— 日记不该长成第二本记忆账本
+console.log(diary.context(3));
+```
+
 ---
 
 ## 这两个东西解决什么问题
@@ -230,6 +253,7 @@
 | 不像人打字 | `ai-companion/Humanizer` | 打字时长、自动分条、条间停顿、深夜变慢 |
 | 太吵 | `ai-companion/Waker` | @/名字/提问/拍一拍/关键词/概率，条件独立，可潜水 |
 | 不像"她" | `ai-companion/Role` | 角色卡 + 体检，防止写成客服手册 |
+| 只记事，不像过日子 | `ai-companion/Diary` | 日记单独存：按天翻、算"认识第几天"、只喂最近 3 条进上下文 |
 | 碰不到手机 | `phone-mcp` | 34 个 MCP 工具，通过 adb 驱动真机或模拟器 |
 
 ---
@@ -309,6 +333,7 @@ node src/phone-mcp.js --selftest     # 自动探测 adb 和设备
 | [主帖（故事）](docs/小黑盒/01-主帖.txt) | 6k | 所有人 ✗ 先看这个 ✓ |
 | [傻瓜版 · 手把手装](docs/小黑盒/06-傻瓜版.txt) | 13k | ★完全不会写代码的 ✗ 从这篇开始★ |
 | [进阶篇 · 日记/听歌/手机/主动找你](docs/小黑盒/07-进阶版.txt) | 19k | ★跑通了基础版之后看这篇★ |
+| [进阶篇之一 · 让她写日记](docs/小黑盒/08-进阶01-日记.txt) | 13k | 只想先加一个功能 ✗ 从这篇开始 ✓ |
 | [快速开始 · 15 分钟](docs/快速开始-15分钟跑起来.md) | 4.7k | 先跑起来看到效果 |
 | [完整教程 · 从零搭一只小鲸鱼](docs/完整教程-从零搭一只小鲸鱼.md) | 18.5k | 认真要搭一套的 |
 | [发布文案](docs/发布文案-抖音-B站.md) | 16k | 想拍视频/发帖的 |
@@ -318,7 +343,7 @@ node src/phone-mcp.js --selftest     # 自动探测 adb 和设备
 ```
 聊天 · 群聊 · 记忆 · 表情包 · 发图 · 截图
 语音识别（本地 whisper） · 知道你听什么歌
-看手机屏幕（adb + 模拟器） · 自己写日记
+看手机屏幕（adb + 模拟器） · 自己写日记（JSONL 账本 + 每天一份 md）
 主动找你 · 开关机脚本 · ★防风控★
 ```
 
@@ -339,6 +364,7 @@ ai-companion-kit/
 │   │   │   ├── brain.js           拼上下文 → 调模型 → 写回记忆
 │   │   │   ├── humanize.js        打字时长 / 分条 / 停顿
 │   │   │   ├── wake.js            该不该说话 / 潜水
+│   │   │   ├── diary.js           日记本（JSONL 追加 + 每天一份 md + CLI）
 │   │   │   ├── transport-onebot.js  QQ（OneBot v11）适配
 │   │   │   ├── index.js           命令行入口
 │   │   │   └── lib.js             库入口
