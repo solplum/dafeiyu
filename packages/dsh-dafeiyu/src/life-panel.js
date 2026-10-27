@@ -1,8 +1,8 @@
 import { LifeError, fail } from './life-store.js';
 
 /** Local owner administration. Account and identity for a record come from storage. */
-export async function lifeOperation(getRuntime, action, body = {}, { authorize = () => false, runtime = getRuntime() } = {}) {
-  const current = () => authorize() === true && runtime === getRuntime();
+export async function lifeOperation(getRuntime, action, body = {}, { authorize = () => false, runtime = getRuntime(), signal } = {}) {
+  const current = () => !signal?.aborted && authorize() === true && runtime === getRuntime();
   if (!current()) fail('FORBIDDEN', '需要当前本机主人权限');
   const memory = runtime?.lifeMemory, autonomy = runtime?.autonomy;
   if (!memory || !autonomy) fail('UNAVAILABLE', '生活与成长服务尚未就绪');
@@ -28,6 +28,10 @@ export async function lifeOperation(getRuntime, action, body = {}, { authorize =
   if (action === 'memory-policy') result = memory.configure(body.patch, options);
   else if (action === 'wallet-policy') result = autonomy.wallet.configure(body.patch, options);
   else if (action === 'autonomy-policy') result = autonomy.configure(body.patch, options);
+  else if (['autonomy-check-now', 'autonomy-browse-now'].includes(action)) {
+    if (Object.keys(body).some(key => key !== 'revision')) fail('INVALID_PATCH', '立即检查只接受当前版本');
+    result = await autonomy.checkNow({ ...options, signal, ...(action === 'autonomy-browse-now' ? { kind: 'browse' } : {}) });
+  }
   else if (action === 'bonus') result = autonomy.wallet.add(body, options);
   else if (action === 'cancel') result = await autonomy.cancel();
   else if (action === 'acknowledge') {

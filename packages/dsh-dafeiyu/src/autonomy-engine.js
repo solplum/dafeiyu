@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { clone, digest, sameScope, validScope, fail, text } from './life-store.js';
+import { projectAutonomyBrowseEvidence } from './autonomy-runner.js';
 import { TimeWallet, calendar } from './time-wallet.js';
 
 const defaults = () => ({ enabled: false, proactive: false, browse: false, quietEnabled: true, greetingEnabled: false, quietStart: 23, quietEnd: 9,
@@ -16,14 +17,15 @@ const quiet = (policy, at) => { const hour = calendar(at).hour;
 const sourceFingerprint = (row) => digest(JSON.stringify([row.id, row.scope, row.status, row.source,
   row.summary, row.detail, row.compacted === true, row.correctedAt || null]));
 const staleSource = '来源记忆已变化或不再可用，未执行旧话题';
+export const RECOMMENDATION_TOPIC = '浏览抖音官方推荐页面：只读取实际推荐内容，没有指定用户话题。';
 const GREETING_TOPIC = '首次主动问候：只简短打招呼，不声称记得任何经历或先前联系。';
 const COUNTER_POLICY = Object.freeze({ contacts: 'account-identity-delivered-local-day', activities: 'created-local-day-non-scheduled' });
 
 /** Persistent candidate times and one independently cancellable activity. No replay or send retry. */
 export class AutonomyEngine {
-  constructor({ memory, run, send, scopes, greetingScopes = () => [], contactReady = () => true, tokenBudget, isBusy = () => false, now = () => Date.now(), random = Math.random }) {
-    Object.assign(this, { memory, run, send, scopes, greetingScopes, contactReady, tokenBudget, isBusy, now, random });
-    this.store = memory.store; this.wallet = new TimeWallet({ store: this.store, now }); this.active = null; this.closed = false;
+  constructor({ memory, run, send, scopes, greetingScopes = () => [], contactReady = () => true, browseReady = () => true, tokenBudget, isBusy = () => false, now = () => Date.now(), random = Math.random }) {
+    Object.assign(this, { memory, run, send, scopes, greetingScopes, contactReady, browseReady, tokenBudget, isBusy, now, random });
+    this.store = memory.store; this.wallet = new TimeWallet({ store: this.store, now }); this.active = null; this.closed = false; this.immediateChecks = new Map();
   }
   snapshot() { const { state, revision } = this.store.read(), value = data(state); return { revision, ...clone(value), policy: policyView(value.policy), wallet: this.wallet.snapshot(), running: Boolean(this.active) }; }
   configure(patch, options) {
@@ -56,11 +58,14 @@ export class AutonomyEngine {
   }
   #permitted(activity, checkReadiness) {
     if (this.closed || !['chat', 'browse'].includes(activity?.kind)) return false;
+    const check = this.immediateChecks.get(activity.id);
+    if (check && (check.signal?.aborted || check.authorize() !== true)) return false;
     const { state } = this.store.read(), value = data(state), policy = policyView(value.policy);
     const stored = value.activities.find((row) => row.id === activity.id);
     return policy.enabled && (!checkReadiness || !quiet(policy, this.now())) && policy.targets.some((scope) => sameScope(scope, activity.scope))
       && this.scopes().some((scope) => sameScope(scope, activity.scope))
       && (!checkReadiness || activity.kind !== 'chat' || this.canContact(activity.scope))
+      && (!checkReadiness || activity.kind !== 'browse' || this.canBrowse(activity.platform, true))
       && (activity.kind === 'chat' ? policy.proactive : policy.browse && policy.platforms.includes(activity.platform))
       && stored && ['scheduled', 'running'].includes(stored.status) && sameScope(stored.scope, activity.scope)
       && stored.kind === activity.kind && stored.platform === activity.platform
@@ -75,6 +80,7 @@ export class AutonomyEngine {
   greetingScope(scope) {
     try { return this.greetingScopes().some(known => sameScope(known, scope)); } catch { return false; }
   }
+  canBrowse(platform, duringExecution = false) { try { return this.browseReady(platform, { duringExecution }) === true; } catch { return false; } }
   canContact(scope) { try { return this.contactReady(scope) === true; } catch { return false; } }
   sourceCurrent(activity, state = this.store.read().state) {
     if (activity?.origin === 'greeting') {
@@ -93,6 +99,18 @@ export class AutonomyEngine {
         && !value.activities.some(row => row.status === 'unknown' || row.delivery === 'unknown' && row.status !== 'interrupted')
         && !this.greetingUnconfirmed(value, activity.scope)
         && !value.awaitingReply.some(scope => sameScope(scope, activity.scope)));
+    }
+    if (activity?.origin === 'recommendation') {
+      const value = data(state), policy = policyView(value.policy);
+      const stored = value.activities.find(row => row.id === activity.id);
+      return Boolean(stored && /^auto-[a-f0-9-]{36}$/.test(activity.id) && ['scheduled', 'running'].includes(stored.status)
+        && stored.origin === 'recommendation' && stored.kind === 'browse' && activity.kind === 'browse'
+        && stored.platform === 'douyin' && activity.platform === 'douyin' && sameScope(stored.scope, activity.scope)
+        && stored.topic === RECOMMENDATION_TOPIC && activity.topic === RECOMMENDATION_TOPIC
+        && stored.sourceId === undefined && stored.sourceFingerprint === undefined
+        && activity.sourceId === undefined && activity.sourceFingerprint === undefined
+        && policy.enabled && policy.browse && policy.platforms.includes('douyin')
+        && policy.targets.some(scope => sameScope(scope, activity.scope)) && this.scopes().some(scope => sameScope(scope, activity.scope)));
     }
     if (activity?.origin !== undefined && activity.origin !== 'memory') return false;
     if (!/^[a-f0-9]{64}$/.test(activity?.sourceFingerprint || '')) return false;
@@ -140,7 +158,7 @@ export class AutonomyEngine {
       return null;
     } catch { return '暂时无法确认 Token 额度'; }
   }
-  #admission(state, activity, randomizePlatform = false) {
+  #admission(state, activity, randomizePlatform = false, requestedKind) {
     const value = data(state), policy = policyView(value.policy);
     const blocked = (reasonCode, reason) => ({ eligible: false, reasonCode, reason });
     if (!policy.enabled) return blocked('DISABLED', '自主活动未开启');
@@ -154,6 +172,7 @@ export class AutonomyEngine {
     const today = calendar(this.now()).day;
     const todayRows = value.activities.filter((row) => row.status !== 'scheduled' && calendar(row.createdAt).day === today);
     if (todayRows.length >= policy.maxActivities) return blocked('ACTIVITY_LIMIT', '今日自主活动次数已达上限（按创建日计，含失败和跳过）');
+    if (requestedKind === 'browse' && !policy.browse) return blocked('NO_ACTION', '自主浏览未获允许');
     if (!policy.proactive && !policy.browse) return blocked('NO_ACTION', '尚未允许主动聊天或自主浏览');
     if (!policy.targets.length) return blocked('NO_TARGETS', '尚未选择自主活动的聊天对象和身份');
     const targets = policy.targets.filter(scope => this.scopes().some(known => sameScope(scope, known))
@@ -174,7 +193,7 @@ export class AutonomyEngine {
       const awaiting = value.awaitingReply.some(row => sameScope(row, scope));
       const greetingUnconfirmed = this.greetingUnconfirmed(value, scope);
       const greeting = !rows.length && policy.greetingEnabled && this.greetingScope(scope) && !last && !greetingUnconfirmed;
-      if (policy.proactive && (!activity || activity.kind === 'chat')) {
+      if (requestedKind !== 'browse' && policy.proactive && (!activity || activity.kind === 'chat')) {
         if (awaiting) reason = blocked('WAITING_REPLY', '正在等待该身份上次主动消息的回复，不连续打扰');
         else if (count >= policy.maxContacts) reason = blocked('CONTACT_LIMIT', '该账号当前身份今日主动聊天次数已达上限');
         else if (recent) reason = blocked('MIN_GAP', '距该身份上次主动消息送达的间隔尚未结束');
@@ -188,16 +207,21 @@ export class AutonomyEngine {
           return { eligible: true, reasonCode: 'GREETING_READY', kind: 'chat', origin: 'greeting', scope,
             reason: '已允许向主要使用者当前身份发送首次简短问候', topic: GREETING_TOPIC };
       }
-      if (!motive || activity?.origin === 'greeting') continue;
+      if (activity?.origin === 'greeting') continue;
       if (policy.browse && (!activity || activity.kind === 'browse')) {
         if (!policy.platforms.length) { reason = blocked('NO_PLATFORM', '尚未选择可自主浏览的平台'); continue; }
+        const selected = activity ? [activity.platform] : policy.platforms.filter(platform => this.canBrowse(platform) && (requestedKind !== 'browse' || platform === 'douyin'));
+        if (!selected.length || !selected.every(platform => this.canBrowse(platform))) { reason = blocked('BROWSE_UNAVAILABLE', '所选平台账号、执行器或风控状态尚未就绪'); continue; }
+        const platform = selected[randomizePlatform ? Math.floor(this.random() * selected.length) : 0];
+        if (!motive && platform !== 'douyin') continue;
         const wallet = this.wallet.snapshot();
         if (!wallet.policy.enabled) { reason = blocked('TIME_WALLET_DISABLED', '自主浏览的娱乐时间额度尚未开启'); continue; }
         if (wallet.availableSeconds <= 0) { reason = blocked('TIME_UNAVAILABLE', '自主浏览的娱乐时间已用完'); continue; }
-        return { eligible: true, reasonCode: 'BROWSE_READY', kind: 'browse', origin: 'memory', scope,
-          platform: activity?.platform || policy.platforms[randomizePlatform ? Math.floor(this.random() * policy.platforms.length) : 0],
-          reason: '可在已授权平台了解相关内容', topic: motive.summary,
-          sourceId: motive.id, sourceFingerprint: sourceFingerprint(motive) };
+        return motive && activity?.origin !== 'recommendation'
+          ? { eligible: true, reasonCode: 'BROWSE_READY', kind: 'browse', origin: 'memory', scope, platform,
+            reason: '可在已授权平台了解相关内容', topic: motive.summary, sourceId: motive.id, sourceFingerprint: sourceFingerprint(motive) }
+          : { eligible: true, reasonCode: 'RECOMMENDATION_READY', kind: 'browse', origin: 'recommendation', scope, platform: 'douyin',
+            reason: '可静音读取已授权抖音账号的官方推荐内容', topic: RECOMMENDATION_TOPIC };
       }
     }
     return reason;
@@ -219,6 +243,30 @@ export class AutonomyEngine {
     if (!candidate && nextCheckAt > this.now()) return { ...meta, eligible: false, readiness: 'waiting',
       reasonCode: 'NEXT_CHECK_WAIT', reason: '触发条件已具备，正在等待下次检查时间' };
     return { ...meta, ...result, readiness: 'ready' };
+  }
+  /** Explicit owner check creates one NEW candidate at the real current time.
+   * No existing scheduled, terminal, unknown or sending activity is accelerated/replayed. */
+  async checkNow({ revision, authorize = () => false, signal, kind } = {}) {
+    if (this.closed || signal?.aborted || authorize() !== true) fail('FORBIDDEN', '当前自主检查授权已失效');
+    if (kind !== undefined && kind !== 'browse') fail('INVALID_PATCH', '立即检查类型无效');
+    let candidate;
+    this.store.update(state => {
+      const value = data(state);
+      if (value.activities.some(row => row.status === 'scheduled')) fail('SCHEDULED_EXISTS', '已有未执行计划，请等待或先在面板核对，未提前旧活动');
+      const next = this.#admission(state, undefined, true, kind);
+      if (!next.eligible) fail(next.reasonCode, next.reason);
+      const now = this.now();
+      candidate = { ...next, id: 'auto-' + randomUUID(), status: 'scheduled', delivery: 'none', createdAt: new Date(now).toISOString(), dueAt: now };
+      value.activities.push(candidate);
+      value.nextAt = now + (30 + Math.floor(this.random() * 91)) * 60000; value.nextAtPurpose = 'candidate';
+    }, { revision, authorize: () => !this.closed && !signal?.aborted && authorize() === true });
+    this.immediateChecks.set(candidate.id, { authorize, signal });
+    const abort = () => { if (this.active?.id === candidate.id) this.active.controller.abort(); };
+    signal?.addEventListener('abort', abort, { once: true });
+    try { if (signal?.aborted) abort(); await this.tick(); }
+    finally { signal?.removeEventListener('abort', abort); this.immediateChecks.delete(candidate.id); }
+    const row = this.snapshot().activities.find(row => row.id === candidate.id);
+    return { activityId: candidate.id, status: row?.status, automaticReplay: false };
   }
   async tick() {
     if (this.closed) return;
@@ -267,9 +315,31 @@ export class AutonomyEngine {
     const stored = data(this.store.read().state).activities.find((row) => row.id === activity.id);
     if (!stored || !['scheduled', 'running'].includes(stored.status)) return;
     if (!this.sourceCurrent(activity)) { this.skipStale(activity); return; }
-    let metering, mode = 'waiting', started = false, outcome = 'failed'; const authorize = () => !this.closed;
+    let metering, mode = 'waiting', started = false, outcome = 'failed', timeFault = false; const authorize = () => !this.closed;
     const valid = () => !controller.signal.aborted && this.permitted(activity) && !this.isBusy();
     const save = (patch) => this.store.update((state) => { const row = data(state).activities.find((item) => item.id === activity.id); Object.assign(row, patch); }, { authorize });
+    const meter = (next, finish = false) => {
+      if (timeFault) throw Object.assign(new Error('娱乐计时结果待核实'), { code: 'TIME_ACCOUNTING_UNCONFIRMED' });
+      try { return this.wallet.meter(activity.id, next, { authorize, finish }); }
+      catch {
+        timeFault = true; mode = 'paused'; clearInterval(metering); controller.abort();
+        throw Object.assign(new Error('娱乐计时结果待核实'), { code: 'TIME_ACCOUNTING_UNCONFIRMED' });
+      }
+    };
+    let evidenceFault = false;
+    const recordEvidence = value => {
+      try {
+        if (activity.kind !== 'browse' || activity.platform !== 'douyin') throw Error();
+        const projected = projectAutonomyBrowseEvidence(value, activity.id);
+        return this.store.update(state => {
+          const row = data(state).activities.find(item => item.id === activity.id);
+          if (!row || !sameScope(row.scope, activity.scope) || row.kind !== 'browse' || row.platform !== 'douyin') throw Error();
+          const previous = row.browseEvidence === undefined ? [] : projectAutonomyBrowseEvidence(row.browseEvidence, activity.id).steps;
+          if (projected.steps.length < previous.length || previous.some((step, index) => JSON.stringify(step) !== JSON.stringify(projected.steps[index]))) throw Error();
+          row.browseEvidence = projected;
+        }, { authorize });
+      } catch { evidenceFault = true; throw Object.assign(new Error('浏览回执证据未确认保存'), { code: 'EVIDENCE_UNCONFIRMED' }); }
+    };
     const timeout = setTimeout(() => controller.abort(), (this.snapshot().policy.sessionSeconds + 120) * 1000); timeout.unref?.();
     try {
       if (!valid()) { outcome = 'skipped'; return; }
@@ -281,13 +351,16 @@ export class AutonomyEngine {
         started = true;
         metering = setInterval(() => {
           try { if (!valid()) controller.abort();
-            if (this.wallet.meter(activity.id, mode, { authorize }).result.exhausted) controller.abort();
+            if (meter(mode).result.exhausted) controller.abort();
           } catch { controller.abort(); }
         }, 1000); metering.unref?.();
       }
       const result = await this.run(activity, { signal: controller.signal, authorize: valid,
-        context: this.memory.context(activity.scope, { maxChars: 2000, query: activity.topic }),
-        onUsage: (next) => { if (started) { this.wallet.meter(activity.id, next, { authorize }); mode = next; } } });
+        context: activity.origin === 'recommendation' ? '' : this.memory.context(activity.scope, { maxChars: 2000, query: activity.topic }),
+        onEvidence: recordEvidence,
+        onUsage: (next) => { if (started) { mode = next; meter(next); } } });
+      if (result?.browseEvidence !== undefined) recordEvidence(result.browseEvidence);
+      if (evidenceFault) { outcome = 'unknown'; return; }
       if (result?.status === 'unknown') { outcome = 'unknown'; return; }
       if (!valid()) { outcome = 'cancelled'; return; }
       if (result?.status !== 'succeeded' || !text(result.text, 4000).trim()) { outcome = result?.status === 'unknown' ? 'unknown' : 'failed'; return; }
@@ -304,12 +377,22 @@ export class AutonomyEngine {
         catch { this.memory.lastError = { code: 'STORAGE', message: '浏览已结束，但相关记忆未确认保存' }; save({ memorySaved: false }); }
       }
       outcome = 'completed';
-    } catch (error) { outcome = ['CONTROL_CLEANUP_UNCONFIRMED', 'TOKEN_ACCOUNTING_UNCONFIRMED'].includes(error?.code)
-      ? 'unknown' : controller.signal.aborted ? 'cancelled' : 'failed'; }
+    } catch (error) {
+      try { if (error?.browseEvidence !== undefined) recordEvidence(error.browseEvidence); } catch { evidenceFault = true; }
+      outcome = evidenceFault || ['CONTROL_CLEANUP_UNCONFIRMED', 'TOKEN_ACCOUNTING_UNCONFIRMED', 'EVIDENCE_UNCONFIRMED', 'TIME_ACCOUNTING_UNCONFIRMED'].includes(error?.code)
+        ? 'unknown' : controller.signal.aborted ? 'cancelled' : 'failed';
+    }
     finally {
       clearTimeout(timeout); clearInterval(metering);
       if (started) {
-        try { this.wallet.meter(activity.id, 'paused', { authorize, finish: true }); } catch { outcome = 'unknown'; }
+        if (!timeFault) { try { meter('paused', true); } catch { outcome = 'unknown'; } }
+        if (timeFault) {
+          outcome = 'unknown';
+          // Recover never accrues elapsed time or changes a prior charge. If
+          // storage is still unavailable, the running/unknown evidence remains
+          // protected and the normal startup recovery handles it without replay.
+          try { this.wallet.recover({ authorize }); } catch {}
+        }
       }
       save({ status: outcome, finishedAt: new Date(this.now()).toISOString() });
     }
@@ -317,7 +400,7 @@ export class AutonomyEngine {
   start() {
     if (this.timer || this.closed) return;
     const value = this.snapshot();
-    if (value.activities.some((row) => row.status === 'running' || row.delivery === 'sending')) {
+    if (value.activities.some((row) => row.status === 'running' || row.delivery === 'sending') || value.wallet.sessions.some(row => row.status === 'running')) {
       this.wallet.recover({ authorize: () => !this.closed });
       this.store.update((state) => { for (const row of data(state).activities) {
         if (row.status === 'running' || row.delivery === 'sending') { row.status = 'unknown'; if (row.delivery === 'sending') row.delivery = 'unknown'; }

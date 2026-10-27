@@ -30,10 +30,10 @@ function fixture(t, options = {}) {
       }
     } };
   t.after(() => { for (const hook of hooks) hook.cleanup?.(); });
-  const api = { alive: { current: true }, cancel() {}, async call(route, method = 'GET', payload) {
+  const api = { alive: { current: true }, cancel() {}, async call(route, method = 'GET', payload, timeoutMs, signal) {
     // Match fetch's JSON boundary, so later draft edits cannot mutate a sent request.
     payload = payload === undefined ? undefined : structuredClone(payload);
-    calls.push({ route, method, payload });
+    calls.push({ route, method, payload, timeoutMs });
     if (method === 'GET' && readGate) await readGate;
     if (method === 'POST' && writeGate) await writeGate;
     if (method === 'GET' && failNextRead) { failNextRead = false; throw new Error('FIXTURE_READBACK_FAILURE'); }
@@ -45,7 +45,7 @@ function fixture(t, options = {}) {
       return { ok: true, life };
     }
     assert.equal(route, 'life/action'); assert.equal(method, 'POST', 'the shipped component must use the actual usePanelApi signature');
-    const life = await lifeOperation(() => runtime, payload.action, payload.input, { authorize: () => true });
+    const life = await lifeOperation(() => runtime, payload.action, payload.input, { authorize: () => !signal?.aborted, signal });
     replies.push(structuredClone(life));
     if (failReadback) { failReadback = false; failNextRead = true; }
     if (afterCommitFailure) { afterCommitFailure = false; throw new Error('FIXTURE_NETWORK_AFTER_COMMIT'); }
@@ -54,7 +54,7 @@ function fixture(t, options = {}) {
   const source = fs.readFileSync(new URL('../packages/dsh-dafeiyu/src/client.js', import.meta.url), 'utf8');
   const start = source.indexOf('    function LifePanel('), end = source.indexOf('    function MemoryPanel(', start);
   const Component = vm.runInNewContext('(' + source.slice(start, end).trim() + ')', { React, ...React, h: React.createElement, TokenPanel: () => null,
-    equal: (a, b) => JSON.stringify(a) === JSON.stringify(b), usePanelApi: () => api, URLSearchParams,
+    equal: (a, b) => JSON.stringify(a) === JSON.stringify(b), usePanelApi: () => api, URLSearchParams, AbortController,
     crypto: { randomUUID: () => '00112233-4455-4677-8899-' + (++serial).toString().padStart(12, '0') } });
   const flatten = (node) => node == null || node === false ? [] : typeof node === 'object' ? [node, ...(node.props?.children || []).flatMap(flatten)] : [];
   const content = (node) => node == null || node === false ? '' : typeof node === 'object' ? (node.props?.children || []).map(content).join('') : String(node);
@@ -716,4 +716,53 @@ test('shipped life-panel parent connects manage-contacts to the existing account
   const f = fixture(t, props); await f.flush(); await f.click('管理聊天对象');
   assert.deepEqual(selectedTabs, ['accounts']); assert.equal(f.posts.length, 0);
   assert.equal(f.calls.filter((row) => row.route === 'config' || row.route === 'apply').length, 0);
+});
+
+
+async function enableOneBrowse(f) {
+  f.engine.configure({ enabled: true, browse: true, proactive: false, platforms: ['douyin'], targets: [f.scope], quietEnabled: false, sessionSeconds: 180 }, { authorize: () => true });
+  f.engine.wallet.configure({ enabled: true, dailySeconds: 600, monthlySeconds: 0 }, { authorize: () => true });
+  await f.click('刷新生活记录');
+}
+test('one new autonomy activity is explicit, uses saved policy and cannot start through a stale dirty form handler', async t => {
+  const f = fixture(t); await f.flush(); let executions = 0;
+  f.engine.run = async () => { executions++; return { status: 'succeeded', text: '离线页面文字观察' }; };
+  assert.equal(f.button('检查并开始一次活动').props.disabled, true); assert.equal(f.posts.length, 0);
+  await enableOneBrowse(f); const stale = f.button('检查并开始一次活动'); assert.equal(stale.props.disabled, false);
+  assert.equal(executions, 0, 'ordinary GET refresh never starts a model or activity');
+  await f.input('每日自主活动总次数上限', '2');
+  assert.equal(f.button('检查并开始一次活动').props.disabled, true); await f.invoke(stale); assert.equal(f.posts.length, 0);
+  await f.click('撤销未保存修改'); await f.click('检查并开始一次活动');
+  assert.equal(executions, 1); assert.equal(f.posts.length, 1); assert.equal(f.posts[0].payload.action, 'autonomy-check-now');
+  assert.deepEqual(Object.keys(f.posts[0].payload.input), ['revision']); assert.equal(f.posts[0].timeoutMs, 390000);
+  assert.equal(f.engine.snapshot().activities[0].status, 'completed'); assert.equal(f.engine.snapshot().policy.greetingEnabled, false);
+  assert.match(f.text, /不会替你开启首次问候/); assert.match(f.text, /Token 和娱乐时间额度记账/);
+});
+test('a pending one-off activity keeps cancellation available despite its long request and external write gates', async t => {
+  const f = fixture(t); await f.flush(); await enableOneBrowse(f);
+  let entered, cancelled = 0; const started = new Promise(resolve => { entered = resolve; });
+  f.engine.run = async (_activity, options) => new Promise(resolve => {
+    options.signal.addEventListener('abort', () => { cancelled++; resolve({ status: 'cancelled', text: '' }); }, { once: true }); entered();
+  });
+  const once = f.button('检查并开始一次活动'), pending = once.props.onClick(); await started; await f.flush();
+  await f.invoke(once); assert.equal(f.posts.filter(row => row.payload.action === 'autonomy-check-now').length, 1, 'double click never POSTs twice');
+  const stop = f.button('停止当前自主活动'); assert.equal(stop.props.disabled, false);
+  await f.simulateGate(true); await f.simulateCancelGate(true); await f.invoke(stop);
+  assert.equal(cancelled, 0); assert.equal(f.posts.length, 1);
+  await f.simulateCancelGate(false); assert.equal(f.button('停止当前自主活动').props.disabled, false);
+  await f.click('停止当前自主活动'); await pending; await f.flush();
+  assert.equal(cancelled, 1); assert.equal(f.posts.length, 2); assert.equal(f.posts[1].payload.action, 'cancel');
+  assert.equal(f.engine.snapshot().running, false); assert.equal(f.engine.snapshot().activities[0].status, 'cancelled');
+  assert.equal(f.button('停止当前自主活动').props.disabled, true);
+});
+test('one-off activity response failure only refreshes records and an unknown activity cannot be resubmitted', async t => {
+  const f = fixture(t); await f.flush(); await enableOneBrowse(f); let executions = 0;
+  f.engine.run = async () => { executions++; return { status: 'succeeded', text: '离线页面文字观察' }; };
+  f.failAfterCommit(); const before = f.calls.length; await f.click('检查并开始一次活动');
+  assert.equal(executions, 1); assert.equal(f.posts.length, 1); assert.deepEqual(f.calls.slice(before).map(row => row.method), ['POST', 'GET']);
+  assert.match(f.alerts(), /不会自动重试或重发活动/); assert.equal(f.engine.snapshot().activities[0].status, 'completed');
+  f.memory.store.update(state => { state.autonomy.activities[0].status = 'unknown'; }, { authorize: () => true });
+  const stale = f.button('检查并开始一次活动'); await f.click('刷新生活记录');
+  assert.equal(f.button('检查并开始一次活动').props.disabled, true); await f.invoke(stale);
+  assert.equal(f.posts.length, 1); assert.equal(executions, 1);
 });

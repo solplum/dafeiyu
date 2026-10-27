@@ -237,8 +237,10 @@ window.__ModuleLoader__.load({
       const requests = useRef(new Set());
       function cancel() { for (const controller of requests.current) controller.abort(); }
       useEffect(() => { alive.current = true; return () => { alive.current = false; cancel(); }; }, []);
-      async function call(route, method, payload, timeoutMs = 20000) {
-        const controller = new AbortController();
+      async function call(route, method, payload, timeoutMs = 20000, externalSignal) {
+        const controller = new AbortController(), externalAbort = () => controller.abort();
+        externalSignal?.addEventListener('abort', externalAbort, { once: true });
+        if (externalSignal?.aborted) controller.abort();
         requests.current.add(controller);
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
@@ -256,7 +258,7 @@ window.__ModuleLoader__.load({
             throw failure;
           }
           return result;
-        } finally { clearTimeout(timeout); requests.current.delete(controller); }
+        } finally { clearTimeout(timeout); externalSignal?.removeEventListener('abort', externalAbort); requests.current.delete(controller); }
       }
       return { alive, cancel, call };
     }
@@ -1045,19 +1047,39 @@ window.__ModuleLoader__.load({
         finally { lock.current = false; if (api.alive.current) setBusy(''); }
       }
       useEffect(() => { if (active) run('refresh', refresh); }, [active]);
+      useEffect(() => {
+        const browser = snapshot?.platforms.find(row => row.platform === 'douyin')?.browser;
+        if (!active || !['ready', 'ready-to-start', 'unconfirmed'].includes(browser?.state)) return;
+        const expiresAt = Date.parse(browser.expiresAt); if (!Number.isFinite(expiresAt)) return;
+        const timer = setTimeout(() => {
+          if (!api.alive.current || latest.current !== snapshot) return;
+          const next = { ...snapshot, platforms: snapshot.platforms.map(row => row.platform === 'douyin'
+            ? { ...row, driverAvailable: false, browser: { ...row.browser, ready: false, canStartNewActivity: false, activityReady: false, state: 'expired' } } : row) };
+          latest.current = next; setSnapshot(next);
+        }, Math.max(0, expiresAt - Date.now()));
+        return () => clearTimeout(timer);
+      }, [active, snapshot]);
       const post = (route, body) => api.call('social/' + route, 'POST', body, route === 'execute' ? 660000 : 90000);
       const btn = (text, name, onClick, disabled = false) => h('button', { className: 'dfy-button', type: 'button', disabled: Boolean(busy) || disabled,
         onClick: () => run(name, onClick) }, busy === name ? '处理中…' : text);
       function acceptBrowse(value, generation) {
         if (api.alive.current && generation === browseGeneration.current) { browseLatest.current = value; setBrowsing(value); }
       }
+      const canOpenBrowse = account => account?.browser?.lifecycle === undefined ? account?.driverAvailable === true
+        : account.browser.canStartNewActivity === true || account.browser.activityReady === true;
+      const canReadBrowse = account => account?.browser?.lifecycle === undefined ? account?.driverAvailable === true
+        : account.browser.activityReady === true && account.browse?.state === 'active';
       const nextReady = () => {
         const account = latest.current?.platforms.find(row => row.platform === 'douyin');
-        return !browseStopping.current && account?.state === 'bound' && account.driverAvailable && !account.safetyPause
+        return !browseStopping.current && account?.state === 'bound' && canReadBrowse(account) && !account.safetyPause
           && !account.busy && !account.blocked && !account.cleanupRequired && account.nextAvailable === true
           && typeof browseLatest.current?.current?.platformVideoId === 'string' && /^[0-9]{10,25}(?![\s\S])/.test(browseLatest.current.current.platformVideoId);
       };
       async function browse(action) {
+        const account = latest.current?.platforms.find(row => row.platform === 'douyin');
+        if (['open', 'current'].includes(action) && (browseStopping.current || account?.state !== 'bound' || account.safetyPause
+          || account.busy || account.blocked || account.cleanupRequired || !(action === 'open' ? canOpenBrowse(account) : canReadBrowse(account))))
+          throw Error('当前浏览入口尚未就绪，请先核验浏览环境。');
         const request = { action }, currentId = browseLatest.current?.current?.id;
         if (action === 'next') { if (!currentId || !nextReady()) throw Error('切换视频仍待验证，当前仅开放读取。'); request.expectedVideoId = currentId; }
         const generation = ++browseGeneration.current;
@@ -1085,7 +1107,7 @@ window.__ModuleLoader__.load({
           h('p', { className: 'dfy-hint' }, '页面播放器静音：' + (media.muted === true ? '已确认' : '未确认') + ' · 播放：' + (media.paused === true ? '已暂停' : media.paused === false ? '播放中' : '未读取') + ' · 进度 ' + seconds(media.currentTime) + ' / ' + seconds(media.duration)));
       };
       const douyinAccount = snapshot?.platforms.find(account => account.platform === 'douyin');
-      const browseUnavailable = !douyinAccount || Boolean(douyinAccount.safetyPause) || !douyinAccount.driverAvailable || douyinAccount.busy || douyinAccount.blocked || douyinAccount.cleanupRequired || douyinAccount.state !== 'bound';
+      const browseUnavailable = !douyinAccount || Boolean(douyinAccount.safetyPause) || douyinAccount.busy || douyinAccount.blocked || douyinAccount.cleanupRequired || douyinAccount.state !== 'bound';
       const select = (value, entries, onChange) => h('select', { className: 'dfy-input', value, onChange: e => onChange(e.target.value) }, entries.map(([key, text]) => h('option', { value: key, key }, text)));
       const platforms = [['bilibili', 'B站'], ['douyin', '抖音'], ['x', 'X']];
       const field = (title, key, placeholder = '') => h('label', { className: 'dfy-field', key }, title, h(key === 'text' ? 'textarea' : 'input', { className: 'dfy-input', value: form[key] || '', placeholder,
@@ -1145,12 +1167,29 @@ window.__ModuleLoader__.load({
         h('section', { 'aria-label': '抖音静音浏览' },
           h('h3', null, '抖音静音浏览'),
           h('p', { className: 'dfy-hint' }, '按你当前交办的任务单步浏览，不自动刷新、连刷或开启自主活动。视频页面文字/播放状态，不代表已理解视频画面。'),
-          douyinAccount?.driverAvailable === false ? h('p', { className: 'dfy-hint' }, '专用 Ego 浏览环境待核验。') : null,
+          douyinAccount?.browser ? h('p', { className: 'dfy-hint' }, douyinAccount.browser.lifecycle === 'closed'
+            ? douyinAccount.browser.state === 'ready-to-start' ? '后台浏览入口已核验；打开时会再次核对账号。本次浏览已结束，登录资料保留。'
+              : douyinAccount.browser.state === 'expired' ? '后台入口核验已过期，请重新核验；本次浏览已结束，登录资料保留。'
+                : '当前没有正在浏览的任务，登录资料保留；开始前请核验后台入口。'
+            : ({ ready: '最近已核验 Ego 浏览空间；登录和当前内容仍以实际读取为准。',
+              'not-checked': '浏览环境已配置，当前 Ego 空间尚未核验。',
+              expired: '上次空间核验已过期，请重新核验；这不代表账号已退出。',
+              unconfirmed: '当前执行器未能确认专用 Ego 空间；这不代表账号已退出，请核验浏览环境。',
+              unavailable: '专用 Ego 浏览环境暂不可用，请核对执行器和保护状态。',
+            })[douyinAccount.browser.state] || '专用 Ego 浏览空间待核验。')
+            : douyinAccount?.driverAvailable === false ? h('p', { className: 'dfy-hint' }, '专用 Ego 浏览环境待核验。') : null,
+          douyinAccount?.browser ? btn('核验 Ego 浏览环境', 'check-browser', async () => {
+            const account = latest.current?.platforms.find(row => row.platform === 'douyin');
+            if (!account?.driverConfigured || account.safetyPause || account.busy || account.blocked || account.cleanupRequired || browseStopping.current) throw Error('当前浏览环境不允许核验，请刷新状态。');
+            const value = await post('check-browser', { platform: 'douyin', revision: latest.current.revision });
+            if (value.accounts) accept(value);
+            return value.browser?.ready === true ? value.browser.state === 'ready-to-start' ? '后台浏览入口已核验；打开时会再次核对账号。没有访问平台页面。' : '已核验当前专用 Ego 空间，没有访问平台页面。' : '当前执行器尚未确认专用 Ego 空间，账号绑定和登录资料保留。';
+          }, !douyinAccount.driverConfigured || Boolean(douyinAccount.safetyPause) || douyinAccount.busy || douyinAccount.blocked || douyinAccount.cleanupRequired || stoppingBrowse) : null,
           douyinAccount?.nextAvailable !== true ? h('p', { className: 'dfy-hint' }, '切换视频仍待验证，当前仅开放读取。') : null,
           h('div', { className: 'dfy-feature-actions' },
-            btn('打开推荐', 'browse-open', () => browse('open'), browseUnavailable || stoppingBrowse),
-            btn('读取当前', 'browse-current', () => browse('current'), browseUnavailable || stoppingBrowse),
-            btn('下一个', 'browse-next', () => browse('next'), browseUnavailable || stoppingBrowse || !browsing?.current?.id || !nextReady()),
+            btn('打开推荐', 'browse-open', () => browse('open'), browseUnavailable || !canOpenBrowse(douyinAccount) || stoppingBrowse),
+            btn('读取当前', 'browse-current', () => browse('current'), browseUnavailable || !canReadBrowse(douyinAccount) || stoppingBrowse),
+            btn('下一个', 'browse-next', () => browse('next'), browseUnavailable || !canReadBrowse(douyinAccount) || stoppingBrowse || !browsing?.current?.id || !nextReady()),
             h('button', { className: 'dfy-button', type: 'button', disabled: stoppingBrowse, onClick: stopBrowse }, stoppingBrowse ? '停止中…' : '停止'),
             btn('查看有限历史', 'browse-history', () => browse('history'), stoppingBrowse)),
           h('p', { className: 'dfy-hint' }, browsing?.state === 'active' ? '本次浏览已打开；只有你操作时才执行下一步。' : browsing?.state === 'unknown' ? '浏览状态待核对；不会自动继续。' : '当前未在浏览。'),
@@ -2811,7 +2850,8 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = useState(null), [editText, setEditText] = useState('');
       const [deleteChecked, setDeleteChecked] = useState(false), [bonusMinutes, setBonusMinutes] = useState('');
       const [bonusReceipt, setBonusReceipt] = useState(null), [tokensDirty, setTokensDirty] = useState(false);
-      const [sectionErrors, setSectionErrors] = useState({});
+      const [sectionErrors, setSectionErrors] = useState({}), [checkingNow, setCheckingNow] = useState(false), [cancellingActivity, setCancellingActivity] = useState(false);
+      const immediateController = useRef(null), cancelLock = useRef(false), cancelGeneration = useRef(0);
       const lock = useRef(false), baseline = useRef(null), bonusIntent = useRef(null), latest = useRef({});
       const fields = {
         memory: { detailedDays: ['普通经历保留细节的天数', 1, 3650, 1], summaryDays: ['普通概要参与主动回忆的天数', 1, 3650, 1] },
@@ -2854,9 +2894,10 @@ window.__ModuleLoader__.load({
       const bonusDraft = Boolean(!bonusReceipt && bonusMinutes.trim());
       const dirty = settingsDirty || experienceDirty || bonusDraft || bonusUnresolved;
       const formBlocked = writeBlocked || Boolean(data?.memory?.error);
+      const autonomyDraftDirty = Boolean(draft && baseline.current && !equal(draft.autonomy, baseline.current.autonomy));
       const live = () => api.alive?.current !== false;
       latest.current = { data, draft, writeBlocked: formBlocked, cancelBlocked, selected, editText, deleteChecked, bonusMinutes, dirty, query, appliedQuery,
-        navigationDirty: dirty || tokensDirty, accounts, onManageAccounts };
+        navigationDirty: dirty || tokensDirty, autonomyDraftDirty, checkingNow, cancellingActivity, accounts, onManageAccounts };
       useEffect(() => { onDirtyChange?.(dirty || tokensDirty); }, [dirty, tokensDirty]);
       useEffect(() => () => onDirtyChange?.(false), []);
       function adopt(next, savedGroup) {
@@ -2915,8 +2956,34 @@ window.__ModuleLoader__.load({
         if (!bonusIntent.current) setBonusMinutes('');
         setFailure(''); setSectionErrors({}); setNotice('未保存的修改已撤销，已保存的设置和余额保持不变。');
       }
+      function canCheckNow() {
+        const current = latest.current, autonomy = current.data?.autonomy;
+        return live() && !lock.current && !cancelLock.current && !current.writeBlocked && !current.autonomyDraftDirty
+          && autonomy?.policy?.enabled === true && autonomy.running !== true
+          && !(autonomy.activities || []).some(row => ['scheduled', 'running', 'unknown'].includes(row.status)
+            || row.delivery === 'unknown' && row.status !== 'interrupted')
+          && !(autonomy.wallet?.sessions || []).some(row => row.status === 'unknown');
+      }
+      async function cancelActivity() {
+        const current = latest.current;
+        if (!live() || cancelLock.current || current.cancelBlocked || !current.data
+          || current.data.autonomy.running !== true && !current.checkingNow) return;
+        cancelLock.current = true; cancelGeneration.current++; setCancellingActivity(true); setFailure('');
+        immediateController.current?.abort();
+        try {
+          const result = await api.call('life/action', 'POST', { action: 'cancel', input: {} }, 180000);
+          if (live()) { adopt(result.life); setNotice('已请求停止当前自主活动，请查看最新记录；未重做任何活动。'); }
+        } catch (error) {
+          if (live()) {
+            setFailure((error.message || '停止结果未确认') + '；仅刷新记录核对，不会重发停止或活动。');
+            try { const next = await readView(current.data.memory.offset, current.appliedQuery); if (live()) adopt(next); } catch {}
+          }
+        } finally { cancelLock.current = false; if (live()) setCancellingActivity(false); }
+      }
       async function act(action, input = {}, policyKey) {
-        if (lock.current || !live() || !latest.current.data
+        if (action === 'cancel') return cancelActivity();
+        if (action === 'autonomy-check-now' && !canCheckNow()) return;
+        if (lock.current || cancelLock.current || !live() || !latest.current.data
           || (action === 'cancel' ? latest.current.cancelBlocked || latest.current.data.autonomy.running !== true : latest.current.writeBlocked)) return;
         const current = latest.current;
         try {
@@ -2944,10 +3011,16 @@ window.__ModuleLoader__.load({
           return;
         }
         lock.current = true; setBusy(true); setFailure(''); setNotice('');
+        const cancelVersion = cancelGeneration.current;
+        if (action === 'autonomy-check-now') { immediateController.current = new AbortController(); setCheckingNow(true); }
         if (policyKey || action === 'bonus') setSectionErrors((old) => ({ ...old, [policyKey || 'bonus']: '' }));
         try {
-          const result = await api.call('life/action', 'POST', { action, input: { revision: current.data.memory.revision, ...input } });
-          if (!live()) return;
+          const sessionSeconds = current.data.autonomy.policy.sessionSeconds;
+          const timeoutMs = action === 'autonomy-check-now' && Number.isSafeInteger(sessionSeconds) && sessionSeconds >= 1 && sessionSeconds <= 3600
+            ? (sessionSeconds + 210) * 1000 : 20000;
+          const result = await api.call('life/action', 'POST', { action, input: { revision: current.data.memory.revision, ...input } }, timeoutMs,
+            action === 'autonomy-check-now' ? immediateController.current?.signal : undefined);
+          if (!live() || action === 'autonomy-check-now' && cancelGeneration.current !== cancelVersion) return;
           let next = result.life, viewNote = '';
           if (current.appliedQuery || current.data.memory.offset > 0) {
             try { next = await readView(current.data.memory.offset, current.appliedQuery); }
@@ -2964,16 +3037,25 @@ window.__ModuleLoader__.load({
           if (action === 'bonus') {
             if (!reconcileBonus(result.life, result.life.result?.result)) throw new Error('本次发放回执尚未确认');
             setNotice('已发放 ' + bonusIntent.current.seconds / 60 + ' 分钟零花时间，余额已更新。' + viewNote);
-          } else setNotice(action === 'delete' ? '受管生活记忆与相关成长已删除；DSH聊天历史和外部备份未清除。'
+          } else setNotice(action === 'autonomy-check-now' ? '本次新的自主活动已返回，请查看活动记录；没有重做旧计划。' : action === 'delete' ? '受管生活记忆与相关成长已删除；DSH聊天历史和外部备份未清除。'
             : policyKey ? ({ memory: '记忆与成长设置', wallet: '时间额度', autonomy: '自主活动范围' })[policyKey] + '已保存并生效。'
               + (Object.keys(current.draft).some((group) => group !== policyKey && !equal(current.draft[group], baseline.current[group])) ? '其他未保存的修改仍保留。' : '')
               : '已保存，请查看最新状态。');
           if (viewNote && action !== 'bonus') setNotice(viewNote);
         } catch (error) {
+          if (action === 'autonomy-check-now') {
+            if (cancelGeneration.current !== cancelVersion || !live()) return;
+            setFailure((error.message || '本次活动结果未确认') + '；只刷新记录核对，不会自动重试或重发活动。');
+            try { const next = await readView(current.data.memory.offset, current.appliedQuery); if (live()) adopt(next); } catch {}
+            return;
+          }
           if (action === 'bonus' && bonusIntent.current) { bonusIntent.current.phase = 'unknown'; setBonusReceipt({ ...bonusIntent.current }); }
           setFailure((error.message || '操作未确认') + '；输入仍保留，请刷新核对后再操作。');
           if (policyKey || action === 'bonus') setSectionErrors((old) => ({ ...old, [policyKey || 'bonus']: (error.message || '操作未确认') + '；输入仍保留。' }));
-        } finally { lock.current = false; setBusy(false); }
+        } finally {
+          if (action === 'autonomy-check-now') { immediateController.current = null; if (live()) setCheckingNow(false); }
+          lock.current = false; if (live()) setBusy(false);
+        }
       }
       function newBonus() {
         if (lock.current || !live() || latest.current.writeBlocked || bonusIntent.current?.phase !== 'done') return;
@@ -3003,15 +3085,16 @@ window.__ModuleLoader__.load({
         if (!lock.current && live() && !latest.current.writeBlocked && !latest.current.navigationDirty) latest.current.onManageAccounts?.();
       };
       const button = (label, handler, disabled = false, mutating = true) => h('button', { type: 'button', className: 'dfy-button',
-        disabled: busy || disabled || mutating && formBlocked,
-        onClick: () => { if (!lock.current && live() && (!mutating || !latest.current.writeBlocked)) return handler(); } }, label);
+        disabled: busy || cancellingActivity || disabled || mutating && formBlocked,
+        onClick: () => { if (!lock.current && !cancelLock.current && live() && (!mutating || !latest.current.writeBlocked)) return handler(); } }, label);
       const recordAct = (action, input = {}) => act(action, { id: selected.id, ...input });
       return h('section', { className: 'dfy-section', 'aria-label': '生活与成长管理' },
         h('h3', null, '生活与成长'), h('p', { className: 'dfy-description' }, '近期经历、逐渐形成的习惯、自主活动和可结余的零花时间。开关默认关闭，启用后按所选范围运行。'),
         h(TokenPanel, { active, onDirtyChange: setTokensDirty, writeBlocked }),
         h('div', { className: 'dfy-toolbar' }, button('刷新生活记录', () => load(), false, false),
           dirty ? button('撤销未保存修改', resetDraft, !settingsDirty && !experienceDirty && !bonusDraft, false) : null,
-          data ? button('停止当前自主活动', () => act('cancel'), cancelBlocked || !data.autonomy.running, false) : null),
+          data ? h('button', { type: 'button', className: 'dfy-button', disabled: cancelBlocked || cancellingActivity || !data.autonomy.running && !checkingNow,
+            onClick: cancelActivity }, cancellingActivity ? '正在停止自主活动…' : '停止当前自主活动') : null),
         dirty ? h('p', { className: 'dfy-hint', role: 'status' }, bonusUnresolved
           ? '本次发放结果需要核对。刷新只读取记录，不会重新发放。'
           : '有未保存的修改，请点击所在分区的保存按钮。刷新记录会保留输入；撤销只影响未保存的修改。') : null,
@@ -3090,6 +3173,9 @@ window.__ModuleLoader__.load({
               h('p', { className: 'dfy-hint' }, '聊天次数按账号和身份分别统计当日已送达消息；活动总次数按当日已创建的活动统计，待计划活动不计入。娱乐时间和 Token 额度分别在上方管理，不互相换算。')),
             sectionErrors.autonomy ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.autonomy) : null,
             button('保存自主活动范围', () => act('autonomy-policy', { patch: draft.autonomy }, 'autonomy')),
+            h('p', { className: 'dfy-hint' }, '检查并开始一次会创建新的自主活动，按已保存的范围、Token 和娱乐时间额度记账；不会提前或重做旧计划。不会替你开启首次问候；问候仅在你已单独允许时发送。'),
+            button(checkingNow ? '正在检查并进行一次活动…' : '检查并开始一次活动', () => act('autonomy-check-now'), !canCheckNow()),
+            autonomyDraftDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销自主活动范围草稿，再开始一次新活动。') : null,
             h('section', { className: 'dfy-section', 'aria-label': '当前等待原因' }, h('h4', null, '当前等待原因'),
               h('p', { className: 'dfy-meta' }, '以下状态按已保存设置判断：', data.preview.reason),
               !equal(draft.autonomy, baseline.current.autonomy) ? h('p', { className: 'dfy-hint', role: 'status' }, '自主活动设置有未保存修改；上方等待原因尚未采用这些修改。') : null,

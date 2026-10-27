@@ -427,10 +427,42 @@ export function registerConfigPanel(ctx, controller) {
               if (query.size) throw new ConfigStoreError('INVALID_PATCH', '平台账号接口不接受查询参数');
               const body = req.method === 'GET' ? {} : await readJson(req);
               if (!admitted()) return;
+              const ownerBusinessAction = req.method === 'POST' && endpoint !== 'social/check-browser'
+                && !(endpoint === 'social/browse' && body?.request?.action === 'history');
+              if (!authorize()) throw new ConfigStoreError('FORBIDDEN', '平台运行实例或授权已变化，请刷新核对');
+              if (ownerBusinessAction) {
+                await expected?.autonomy?.cancel?.();
+                if (!authorize()) throw new ConfigStoreError('FORBIDDEN', '平台运行实例或授权已变化，请刷新核对');
+              }
               const result = await socialAccountRoute(endpoint, manager, body, { authorize, signal: requestController.signal });
               if (admitted() && authorize()) json(res, 200, result);
               else if (admitted()) throw new ConfigStoreError('CONFLICT', '平台账号运行实例已变化，请刷新核对');
             } finally {
+              req.removeListener?.('aborted', abort); res.removeListener?.('close', onResponseClose);
+              ownerSignal?.removeEventListener('abort', abort);
+            }
+            return;
+          }
+          if (endpoint === 'life/action') {
+            const expected = controller.getRuntime(), manager = expected?.autonomy;
+            const ownerSignal = connection.admit(req)?.peer?.signal;
+            const requestController = new AbortController(), abort = () => requestController.abort();
+            const onResponseClose = () => { if (!res.writableEnded) abort(); };
+            req.once?.('aborted', abort); res.once?.('close', onResponseClose);
+            ownerSignal?.addEventListener('abort', abort, { once: true });
+            if (req.aborted || res.destroyed || ownerSignal?.aborted) abort();
+            const authorize = () => !closed && !requestController.signal.aborted && ownerRequestRejection(connection, req) === null
+              && controller.getRuntime() === expected && expected?.autonomy === manager;
+            try {
+              const body = await readJson(req);
+              if (!admitted()) return;
+              if (!body || Object.keys(body).some(key => !['action', 'input'].includes(key)) || typeof body.action !== 'string' || !body.input)
+                throw new ConfigStoreError('INVALID_PATCH', '生活操作请求无效');
+              const result = await lifeOperation(() => controller.getRuntime(), body.action, body.input,
+                { authorize, runtime: expected, signal: requestController.signal });
+              if (admitted() && authorize()) json(res, 200, { ok: true, life: result });
+            } catch (error) { const safe = lifeError(error); throw new ConfigStoreError(safe.code, safe.message); }
+            finally {
               req.removeListener?.('aborted', abort); res.removeListener?.('close', onResponseClose);
               ownerSignal?.removeEventListener('abort', abort);
             }
@@ -513,7 +545,6 @@ export function registerConfigPanel(ctx, controller) {
           const conversationWrite = endpoint.startsWith('conversations/');
           const conversationRuntime = conversationWrite ? controller.getRuntime?.() : null;
           const taskRuntime = endpoint.startsWith('tasks/') ? controller.getRuntime?.() : null;
-          const lifeRuntime = endpoint === 'life/action' ? controller.getRuntime?.() : null;
           const tokenRuntime = endpoint.startsWith('tokens/') ? controller.getRuntime?.() : null;
           const speechRuntime = endpoint === 'speech/test' ? controller.getRuntime?.() : null;
           const voiceRuntime = ['voice/check', 'voice/test'].includes(endpoint) ? controller.getRuntime?.() : null;
@@ -549,12 +580,6 @@ export function registerConfigPanel(ctx, controller) {
               authorize: () => authorization.authorize() && controller.getRuntime() === speechRuntime });
             if (admitted()) json(res, 200, { ok: true, test, speech: service('model').speechSnapshot() });
             return;
-          }
-          if (endpoint === 'life/action') {
-            if (!body || Object.keys(body).some((key) => !['action', 'input'].includes(key)) || typeof body.action !== 'string' || !body.input) throw new ConfigStoreError('INVALID_PATCH', '生活操作请求无效');
-            try { const result = await lifeOperation(() => controller.getRuntime(), body.action, body.input, { ...authorization, runtime: lifeRuntime });
-              if (admitted()) json(res, 200, { ok: true, life: result }); return;
-            } catch (error) { const safe = lifeError(error); throw new ConfigStoreError(safe.code, safe.message); }
           }
           if (endpoint.startsWith('capabilities/')) {
             const result = await controller.capabilityOperation(endpoint.endsWith('/probe') ? 'probe' : 'check', body,

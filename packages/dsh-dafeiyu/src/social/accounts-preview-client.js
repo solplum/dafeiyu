@@ -3,7 +3,7 @@
   const token = location.hash.slice(1) || sessionStorage.getItem('dfy-preview-owner') || '';
   if (token) sessionStorage.setItem('dfy-preview-owner', token);
   history.replaceState(null, '', location.pathname);
-  const $ = id => document.getElementById(id), pictures = new Map(), pending = new Set(); let state, generation = 0, browsing = null, browseGeneration = 0, browseScope = null;
+  const $ = id => document.getElementById(id), pictures = new Map(), pending = new Set(); let state, generation = 0, browsing = null, browseGeneration = 0, browseScope = null, metadataExpiryTimer;
   const labels = { disconnected: '尚未绑定', 'login-pending': '等待扫码或登录', candidate: '请确认账号', bound: '已绑定',
     expired: '二维码已过期', 'login-unknown': '登录状态待核对', 'identity-binding-required': '账号识别待适配', 'account-mismatch': '登录账号与原绑定不一致', 'verification-required': '需要本人完成验证' };
   const verbs = { profile: '账号资料', search: '搜索', posts: '我的作品', comments: '作品评论', replies: '收到的回复', inbox: '收件箱', messages: '私信会话',
@@ -29,6 +29,15 @@
       const scope = JSON.stringify([account?.accountId || null, account?.generation || 0, account?.state || null]);
       if (browseScope !== null && browseScope !== scope) { browseGeneration++; browsing = null; }
       browseScope = scope; state = value.accounts;
+      clearTimeout(metadataExpiryTimer);
+      const browser = account?.browser, expiresAt = Date.parse(browser?.expiresAt);
+      if (['ready', 'ready-to-start', 'unconfirmed'].includes(browser?.state) && Number.isFinite(expiresAt)) {
+        const captured = state;
+        metadataExpiryTimer = setTimeout(() => { if (state !== captured) return;
+          state = { ...state, platforms: state.platforms.map(row => row.platform === 'douyin'
+            ? { ...row, driverAvailable: false, browser: { ...row.browser, ready: false, canStartNewActivity: false, activityReady: false, state: 'expired' } } : row) }; render();
+        }, Math.max(0, expiresAt - Date.now()));
+      }
       for (const account of state.platforms.filter(row => row.loginImageAvailable && pictures.get(row.platform)?.sessionId !== row.loginSession)) {
         try { const cached = await api('social/login/image', { platform: account.platform, sessionId: account.loginSession });
           if (cached.image?.mime === 'image/png' && /^[A-Za-z0-9+/=]+$/.test(cached.image.base64 || '') && cached.image.base64.length < 1500000)
@@ -49,13 +58,20 @@
     if (primary) value.className = 'primary'; value.addEventListener('click', () => { if (!value.disabled && !pending.has(key)) handler(); }); return value;
   };
   const browseMessages = { open: '已打开抖音推荐页，保持静音。', current: '已读取当前视频页面文字与播放状态。', next: '已切换到下一个视频，保持静音。', stop: '本次浏览已停止，登录资料保留。', history: '已读取最多20条本地浏览记录，没有访问平台。' };
+  const canOpenBrowse = account => account?.browser?.lifecycle === undefined ? account?.driverAvailable === true
+    : account.browser.canStartNewActivity === true || account.browser.activityReady === true;
+  const canReadBrowse = account => account?.browser?.lifecycle === undefined ? account?.driverAvailable === true
+    : account.browser.activityReady === true && account.browse?.state === 'active';
   const nextReady = () => {
     const account = state?.platforms.find(row => row.platform === 'douyin');
-    return !pending.has('browse-stop') && account?.state === 'bound' && account.driverAvailable && !account.safetyPause
+    return !pending.has('browse-stop') && account?.state === 'bound' && canReadBrowse(account) && !account.safetyPause
       && !account.busy && !account.blocked && !account.cleanupRequired && account.nextAvailable === true
       && typeof browsing?.current?.platformVideoId === 'string' && /^[0-9]{10,25}(?![\s\S])/.test(browsing.current.platformVideoId);
   };
   async function browse(action) {
+    const account = state?.platforms.find(row => row.platform === 'douyin');
+    if (['open', 'current'].includes(action) && (pending.has('browse-stop') || account?.state !== 'bound' || account.safetyPause
+      || account.busy || account.blocked || account.cleanupRequired || !(action === 'open' ? canOpenBrowse(account) : canReadBrowse(account)))) return;
     const currentId = browsing?.current?.id;
     if (action === 'next' && (!currentId || !nextReady())) return;
     const currentGeneration = ++browseGeneration, request = { action };
@@ -80,12 +96,20 @@
   function renderBrowse() {
     const account = state.platforms.find(row => row.platform === 'douyin'), actions = $('browse-actions'), content = $('browse-content');
     actions.replaceChildren(); content.replaceChildren();
-    const unavailable = !account || Boolean(account.safetyPause) || !account.driverAvailable || account.busy || account.blocked || account.cleanupRequired || account.state !== 'bound';
+    const unavailable = !account || Boolean(account.safetyPause) || account.busy || account.blocked || account.cleanupRequired || account.state !== 'bound';
     for (const [action, label] of [['open', '打开推荐'], ['current', '读取当前'], ['next', '下一个'], ['stop', '停止'], ['history', '查看有限历史']]) {
       const key = action === 'stop' ? 'browse-stop' : 'douyin';
-      actions.append(button(label, key, () => browse(action), action === 'open', action === 'stop' ? false : pending.has('browse-stop') || (action !== 'history' && unavailable) || (action === 'next' && (!browsing?.current?.id || !nextReady()))));
+      actions.append(button(label, key, () => browse(action), action === 'open', action === 'stop' ? false : pending.has('browse-stop') || (action !== 'history' && unavailable) || (action === 'open' && !canOpenBrowse(account)) || (['current', 'next'].includes(action) && !canReadBrowse(account)) || (action === 'next' && (!browsing?.current?.id || !nextReady()))));
     }
-    if (account?.driverAvailable === false) content.append(el('p', '专用 Ego 浏览环境待核验。', { className: 'muted' }));
+    if (account?.browser) {
+      const texts = { 'ready-to-start': '后台浏览入口已核验；打开时会再次核对账号。本次浏览已结束，登录资料保留。', ready: '最近已核验 Ego 浏览空间；登录和内容以实际读取为准。', 'not-checked': '浏览环境已配置，当前 Ego 空间尚未核验。',
+        expired: '上次空间核验已过期，请重新核验；这不代表账号已退出。', unconfirmed: '当前执行器未能确认专用 Ego 空间；这不代表账号已退出。', unavailable: '专用 Ego 浏览环境暂不可用。' };
+      content.append(el('p', account.browser.lifecycle === 'closed' && account.browser.state !== 'ready-to-start' ? '本次浏览已结束，登录资料保留；开始前请核验后台入口。' : texts[account.browser.state] || '专用 Ego 空间待核验。', { className: 'muted' }),
+        button('核验 Ego 浏览环境', 'check-browser', () => run('check-browser', async () => {
+          const value = await api('social/check-browser', { platform: 'douyin', revision: state.revision });
+          return value.browser?.ready === true ? value.browser.state === 'ready-to-start' ? '后台浏览入口已核验；打开时会再次核对账号。没有访问平台页面。' : '已核验当前专用 Ego 空间，没有访问平台页面。' : '当前执行器尚未确认专用 Ego 空间，账号绑定和登录资料保留。';
+        }), false, !account.driverConfigured || Boolean(account.safetyPause) || account.busy || account.blocked || account.cleanupRequired));
+    } else if (account?.driverAvailable === false) content.append(el('p', '专用 Ego 浏览环境待核验。', { className: 'muted' }));
     if (account?.nextAvailable !== true) content.append(el('p', '切换视频仍待验证，当前仅开放读取。', { className: 'muted' }));
     content.append(el('p', browsing?.state === 'active' ? '本次浏览已打开；只有你操作时才执行下一步。' : browsing?.state === 'unknown' ? '浏览状态待核对；不会自动继续。' : '当前未在浏览。', { className: 'muted' }));
     if (browsing?.current) content.append(browseVideo(browsing.current));

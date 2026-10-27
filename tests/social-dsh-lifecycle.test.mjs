@@ -10,7 +10,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => resolv
 
 // The shipped HTTP route is mounted. Only its runtime and HTTP transports are
 // fixtures: no file, browser, platform, private configuration or model is used.
-function fixture(t, { action = 'next', reject = false } = {}) {
+function fixture(t, { action = 'next', reject = false, autonomy } = {}) {
   const entered = deferred(), gate = deferred(), completed = deferred(), owner = new AbortController();
   const routes = new Map(); let captured, lateSteps = 0, peer = { principal: { kind: 'owner' }, signal: owner.signal };
   const manager = {
@@ -24,7 +24,7 @@ function fixture(t, { action = 'next', reject = false } = {}) {
       } finally { completed.resolve(); }
     },
   };
-  const runtime = { socialAccounts: manager }, effects = [];
+  const runtime = { socialAccounts: manager, autonomy }, effects = [];
   const ctx = { inject(names, callback) {
     assert.deepEqual(names, ['webServer', 'connection']);
     callback({ get(name) { return name === 'connection' ? { admit: () => ({ peer }) } : {
@@ -96,4 +96,19 @@ test('dynamic owner admission changes revoke the action even without a peer abor
   f.setPeer({ principal: { kind: 'guest' }, signal: new AbortController().signal });
   assert.equal(f.context.authorize(), false); await f.release();
   assert.equal(f.lateSteps, 0); assert.equal(f.res.status, 403); assert.equal(f.res.ends[0].browse, undefined);
+});
+
+test('owner business browse waits for autonomous cleanup before manager dispatch, while local history does not cancel it', async t => {
+  const cancelling = deferred(), cleaned = deferred(); let dispatch = false, cancels = 0;
+  const f = fixture(t, { action: 'open', autonomy: { async cancel() { cancels++; cancelling.resolve(); await cleaned.promise; } } });
+  f.entered.then(() => { dispatch = true; }); await cancelling.promise; await turn(); assert.equal(dispatch, false);
+  cleaned.resolve(); await f.entered; assert.equal(cancels, 1); await f.release();
+  const history = fixture(t, { action: 'history', autonomy: { cancel() { assert.fail('local history must not cancel autonomy'); } } });
+  await history.entered; await history.release();
+});
+test('owner revoked during autonomous cleanup never dispatches the delayed manual platform action', async t => {
+  const cancelling = deferred(), cleaned = deferred(); let called = false;
+  const f = fixture(t, { action: 'open', autonomy: { async cancel() { cancelling.resolve(); await cleaned.promise; } } });
+  f.entered.then(() => { called = true; }); await cancelling.promise; f.owner.abort(); cleaned.resolve();
+  await turn(); await turn(); assert.equal(called, false); assert.equal(f.res.status, 403);
 });

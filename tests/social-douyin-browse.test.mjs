@@ -108,10 +108,10 @@ test('manager rejects changed account generations, revoked authority and mismatc
   }
 });
 
-function driverFixture({ videoIdentity = verifiedVideoIdentity } = {}) {
+function driverFixture({ videoIdentity = verifiedVideoIdentity, capturePhases = false, failPhase = null } = {}) {
   let video = current('one'), account = owner, active = 'creator', clicks = 0, runs = 0, stops = 0, afterIdentity, clickUnknown = false;
   const tabs = [{ targetId: 'creator', url: 'https://creator.douyin.com/creator-micro/home' }, { targetId: 'feed', url: DOUYIN_RECOMMEND }];
-  const scripts = [], selected = [];
+  const scripts = [], selected = [], phases = [], waits = [];
   const runtime = {
     children: new Set(), cleanupPending: false,
     async run(body) {
@@ -124,7 +124,10 @@ function driverFixture({ videoIdentity = verifiedVideoIdentity } = {}) {
       const page = {
         async url() { return tabs.find(t => t.targetId === active).url; },
         async goto() { throw Error('unexpected navigation away from an existing tab'); },
-        async waitForFunction() {},
+        async waitForFunction(expression, options) {
+          waits.push({ phase: phases.at(-1), timeout: options.timeout });
+          if (failPhase && phases.at(-1) === failPhase) { const error = Error('PRIVATE_TIMEOUT_DETAILS'); error.name = 'TimeoutError'; throw error; }
+        },
         async evaluate(expression) {
           if (expression === douyinVideoObservation(videoIdentity)) {
             assert.equal(active, 'feed');
@@ -144,6 +147,7 @@ function driverFixture({ videoIdentity = verifiedVideoIdentity } = {}) {
       try {
         return await vm.runInNewContext('(async()=>{' + body + '\nreturn result;})()', {
           URL, page, browser, taskSpaces: { async list() { return [{ id: 1, name: 'dfy-social-douyin', ownership: 'agent' }]; }, async useOrCreate() {} },
+          ...(capturePhases ? { __dfyPhase: value => phases.push(value) } : {}),
         });
       } catch (error) { if (!error.code && ['ACCOUNT_MISMATCH', 'BINDINGS_REQUIRED', 'RISK_CONTROL'].includes(error.message)) error.code = error.message; throw error; }
     },
@@ -152,10 +156,34 @@ function driverFixture({ videoIdentity = verifiedVideoIdentity } = {}) {
   const driver = new BrowserAccountDriver({ key: 'douyin', directory: '/not-used-fixture', runtime,
     bindings: { platform: 'douyin', verified: true, accountId: owner, browse: { videoIdentity }, identity: {
       url: 'https://creator.douyin.com/creator-micro/home', selector: '#own', attribute: 'innerText', pattern: '^own:(.+)$' } } });
-  return { driver, runtime, scripts, selected, context: { ...context, accountId: owner },
+  return { driver, runtime, scripts, selected, phases, waits, context: { ...context, accountId: owner },
     setVideo(value) { video = value; }, setAccount(value) { account = value; }, setAfterIdentity(value) { afterIdentity = value; },
     setUnknown(value) { clickUnknown = value; }, get clicks() { return clicks; }, get runs() { return runs; }, get stops() { return stops; } };
 }
+
+test('browse phases identify native waits while a legacy runtime remains executable without the native hook', async () => {
+  const legacy = driverFixture(); await legacy.driver.browse({ action: 'open' }, legacy.context);
+  assert.deepEqual(legacy.phases, []);
+  const f = driverFixture({ capturePhases: true }); await f.driver.browse({ action: 'open' }, f.context);
+  assert.deepEqual(f.phases, [
+    'browse-identity-navigation', 'browse-identity-wait', 'browse-identity-read',
+    'browse-feed-select', 'browse-feed-navigation', 'browse-navigation-wait', 'browse-navigation-read',
+    'browse-video-wait', 'browse-video-read', 'browse-return-identity-navigation',
+    'browse-return-identity-wait', 'browse-return-identity-read', 'browse-return-feed',
+    'browse-return-video-wait', 'browse-return-video-read', 'browse-receipt',
+  ]);
+  assert.deepEqual(f.waits.map(row => row.timeout), [10000, 15000, 15000, 10000, 15000]);
+});
+
+test('browse wait failures retain their precise fixed phase and do not retry or lengthen waits', async () => {
+  for (const phase of ['browse-navigation-wait', 'browse-video-wait', 'browse-return-identity-wait', 'browse-return-video-wait']) {
+    const f = driverFixture({ capturePhases: true, failPhase: phase });
+    await assert.rejects(f.driver.browse({ action: 'open' }, f.context), { name: 'TimeoutError' });
+    assert.equal(f.phases.at(-1), phase); assert.equal(f.runs, 1); assert.equal(f.clicks, 0);
+    assert.equal(f.waits.at(-1).timeout, phase === 'browse-return-identity-wait' ? 10000 : 15000);
+    assert.equal(f.driver.browseCurrent, null);
+  }
+});
 
 test('driver checks identity in a separate tab before and after projection; history is local and bounded', async () => {
   const f = driverFixture();

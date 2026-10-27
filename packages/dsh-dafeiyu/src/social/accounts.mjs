@@ -4,8 +4,26 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PLATFORMS, platform, accountId, uuid, deny, allowed, exactKeys, readRequest, writeRequest, browseRequest } from './platforms.mjs';
 import { DEFAULT_REQUEST_POLICY, RISK_CODES, consumeRequest, requireNotPaused } from './request-policy.mjs';
 import { SocialAccountStore, digest } from './account-store.mjs';
+import { nativeEgoDiagnostic } from './native-ego-diagnostic.mjs';
 
 const ACTIVE_LEASES = new Set();
+// Pure projection of the same persistent request ceilings used by consumeRequest.
+// null means the stored history cannot establish a safe local next time.
+function readCooldownRemaining(row, now, policy) {
+  if (!policy) return 0;
+  const limit = policy.read, history = row?.requestHistory || [];
+  if (!limit || !Number.isFinite(now) || !Array.isArray(history) || history.some(event => !event
+    || !Object.hasOwn(DEFAULT_REQUEST_POLICY, event.kind) || !Number.isFinite(event.at) || event.at > now + 60000)) return null;
+  const recent = history.filter(event => now - event.at < 86400000).sort((a, b) => a.at - b.at);
+  const own = recent.filter(event => event.kind === 'read'), hourly = own.filter(event => now - event.at < 3600000);
+  let next = now;
+  if (own.length) next = Math.max(next, own.at(-1).at + limit.gapMs);
+  if (hourly.length >= limit.perHour) next = Math.max(next, hourly[hourly.length - limit.perHour].at + 3600000);
+  if (limit.perDay && own.length >= limit.perDay) next = Math.max(next, own[own.length - limit.perDay].at + 86400000);
+  if (recent.length >= 2000) next = Math.max(next, recent[recent.length - 2000].at + 86400000);
+  return Math.max(0, Math.ceil(next - now));
+}
+
 const safeIdentity = value => {
   if (value?.loggedIn !== true || !accountId(value.accountId)) return null;
   return { accountId: value.accountId, name: typeof value.name === 'string' ? value.name.slice(0, 100).replace(/[\x00-\x1f\x7f]/g, '') : value.accountId };
@@ -93,7 +111,7 @@ export class SocialAccounts {
       context.signal?.removeEventListener('abort', abort); this.controller.signal.removeEventListener('abort', abort);
       if (this.live.get(key) === job) this.live.delete(key);
       ACTIVE_LEASES.delete(lease);
-      try { if (this.drivers[key]?.idle !== false && JSON.parse(fs.readFileSync(lease, 'utf8')).token === token) fs.unlinkSync(lease); } catch {}
+      try { if (!job.cleanupUnknown && this.drivers[key]?.idle !== false && JSON.parse(fs.readFileSync(lease, 'utf8')).token === token) fs.unlinkSync(lease); } catch {}
       finish();
     }
   }
@@ -110,6 +128,7 @@ export class SocialAccounts {
     const platforms = Object.entries(PLATFORMS).map(([key, definition]) => {
       const row = state.accounts[key], driver = this.drivers[key];
       const readiness = driver?.capabilities?.() || {};
+      const native = driver?.runtime?.backend === 'native-ego' ? driver.runtime.status() : null;
       return { platform: key, name: definition.name, loginMethod: definition.qr ? 'qr' : 'official-login',
         state: row?.state || 'disconnected', safetyPause: row?.safetyPause ? { reason: row.safetyPause.reason, at: row.safetyPause.at } : null, accountId: row?.accountId || null, accountName: row?.name || '',
         candidate: row?.candidate && accountId(row.candidate.accountId) ? { accountId: row.candidate.accountId,
@@ -118,13 +137,30 @@ export class SocialAccounts {
         loginImageAvailable: this.loginImages.has(key) && row?.state === 'login-pending' && this.loginImages.get(key)?.sessionId === row.loginSession && this.loginImages.get(key).expiresAt > this.now(),
         busy: this.live.has(key), blocked: Boolean(row?.activeOperation), cleanupRequired: !this.live.has(key) && fs.existsSync(this.#lease(key)),
         nextAvailable: key === 'douyin' && driver?.nextAvailable === true,
-        loginAvailable: driver?.loginAvailable !== false, driverAvailable: Boolean(driver) && driver.available !== false, driverIssue: driver?.runtime?.unavailableReason || null,
+        loginAvailable: driver?.loginAvailable !== false, driverConfigured: Boolean(driver) && driver.available !== false,
+        driverAvailable: native ? native.nativeReady === true || native.canStartNewActivity === true : Boolean(driver) && driver.available !== false, driverIssue: driver?.runtime?.unavailableReason || null,
+        browser: native ? { configured: native.configured, ...native.metadata, lifecycle: native.lifecycle,
+          canStartNewActivity: native.canStartNewActivity === true, activityReady: native.activityReady === true,
+          lastDiagnostic: nativeEgoDiagnostic(native.lastDiagnostic) } : null,
+        browse: key === 'douyin' ? { state: driver?.browseStatus?.().state || 'unknown',
+          cooldownRemainingMs: readCooldownRemaining(row, this.now(), this.requestPolicy) } : null,
         capabilities: [...definition.reads, ...definition.writes].map(operation => ({ operation,
           mode: definition.writes.includes(operation) ? 'write' : 'read',
           state: row?.state !== 'bound' ? 'needs-login' : readiness[operation] || 'not-implemented' })) };
     });
     return { revision, busy: this.busy, platforms, operations: Object.values(state.operations).slice(-100).reverse()
       .map(row => safeOperation(row, this.live.has(row.platform))) };
+  }
+  async checkBrowser(body, context) {
+    exactKeys(body, ['platform', 'revision']); if (body.platform !== 'douyin' || typeof body.revision !== 'string') deny('INVALID_REQUEST');
+    return this.#exclusive(body.platform, context, async current => {
+      const before = this.store.read(); if (before.revision !== body.revision) deny('CONFLICT');
+      requireNotPaused(before.state.accounts[body.platform]);
+      if (before.state.accounts[body.platform]?.activeOperation) deny('RESULT_UNKNOWN');
+      const browser = await this.#driver(body.platform).checkBrowser({ ...current, isCurrent: () => this.store.read().revision === before.revision });
+      this.#authority(current.authorize, current.signal); if (this.store.read().revision !== before.revision) deny('CONFLICT');
+      return { browser, accounts: this.snapshot() };
+    });
   }
   async startLogin(body, context) {
     exactKeys(body, ['platform', 'requestId', 'revision']); const key = body.platform; platform(key);
@@ -208,21 +244,62 @@ export class SocialAccounts {
   async read(key, request, context) {
     const input = readRequest(key, request);
     return this.#exclusive(key, context, async current => {
-      const expected = this.#account(key); if (expected.activeOperation) deny('RESULT_UNKNOWN'); this.#pace(key, 'read', current); await this.#identity(key, expected, current);
-      const result = await this.#driver(key).read(input, current);
-      await this.#identity(key, expected, current);
-      // Drivers must project selected data, never return raw browser logs,
-      // response headers, cookies, tokens, HTML or unrelated conversations.
-      const bytes = JSON.stringify(result);
-      if (Buffer.byteLength(bytes) > 32000 || result?.ok !== true || result.accountId !== expected.accountId) deny('INVALID_RECEIPT');
-      return result;
+      const expected = this.#account(key), driver = this.#driver(key), job = this.live.get(key);
+      if (expected.activeOperation) deny('RESULT_UNKNOWN');
+      requireNotPaused(expected); this.#pace(key, 'read', current);
+      // This explicit read operation may own a finite new task. Generic native
+      // run/account never create a Space, and a borrowed active feed is retained.
+      let created = false;
+      try {
+        if (typeof driver.beginReadActivity === 'function')
+          created = await driver.beginReadActivity({ ...current, accountId: expected.accountId }) === true;
+        await this.#identity(key, expected, current);
+        const result = await driver.read(input, current);
+        await this.#identity(key, expected, current);
+        // Project selected data, never raw headers, credentials or unrelated chats.
+        if (Buffer.byteLength(JSON.stringify(result)) > 32000 || result?.ok !== true || result.accountId !== expected.accountId) deny('INVALID_RECEIPT');
+        return result;
+      } catch (error) {
+        // Preserve the platform pause even if final task cleanup also fails.
+        if (RISK_CODES.has(error?.code)) this.#pause(key, 'risk-control');
+        throw error;
+      } finally {
+        if (created) {
+          const cleanupAuthorized = () => {
+            try { const row = this.#account(key);
+              return !this.closed && this.isOpen() && this.live.get(key) === job && ACTIVE_LEASES.has(this.#lease(key))
+                && row.accountId === expected.accountId && row.generation === expected.generation;
+            } catch { return false; }
+          };
+          // Cancellation revokes reading, while this exact still-held job may
+          // finish only the task it created. A cleanup failure retains occupancy.
+          try {
+            if (!cleanupAuthorized() || typeof driver.endReadActivity !== 'function') deny('CLEANUP_UNCONFIRMED');
+            const receipt = await driver.endReadActivity({ accountId: expected.accountId, authorize: cleanupAuthorized,
+              signal: new AbortController().signal });
+            if (receipt?.stopped !== true || receipt.taskSpaceClosed !== true || receipt.spaceRetained !== false || receipt.browserStopped !== false) deny('CLEANUP_UNCONFIRMED');
+          } catch { job.cleanupUnknown = true; deny('CLEANUP_UNCONFIRMED'); }
+        }
+      }
     });
+  }
+  #autonomousBrowseExpectation(key, context, { initiallyStopped = false } = {}) {
+    const expectation = context.autonomousExpectation;
+    if (expectation === undefined) return;
+    if (!expectation || typeof expectation !== 'object' || Array.isArray(expectation)
+      || Object.keys(expectation).sort().join(',') !== 'accountId,generation,initiallyStopped'
+      || !accountId(expectation.accountId) || !Number.isSafeInteger(expectation.generation) || expectation.generation < 0
+      || typeof expectation.initiallyStopped !== 'boolean') deny('AUTONOMY_PRECONDITION');
+    const row = this.#account(key);
+    if (row.accountId !== expectation.accountId || row.generation !== expectation.generation
+      || initiallyStopped && expectation.initiallyStopped && this.#driver(key).browseStatus?.().state !== 'stopped') deny('AUTONOMY_PRECONDITION');
   }
   async browse(key, request, context) {
     const input = browseRequest(key, request); this.#authority(context.authorize, context.signal);
     const driver = this.#driver(key);
     if (typeof driver.browse !== 'function') deny('OPERATION_UNAVAILABLE');
     if (input.action === 'history') {
+      this.#autonomousBrowseExpectation(key, context);
       const expected = this.#account(key);
       const result = await driver.browse(input, { ...context, accountId: expected.accountId });
       this.#authority(context.authorize, context.signal);
@@ -231,15 +308,22 @@ export class SocialAccounts {
       return result;
     }
     if (input.action === 'stop') {
+      this.#autonomousBrowseExpectation(key, context);
       const job = this.live.get(key); job?.controller.abort();
       if (job) await job.done;
       this.#authority(context.authorize, context.signal);
+      this.#autonomousBrowseExpectation(key, context);
       this.#recoverLease(key, true);
-      return this.#exclusive(key, { ...context, stopping: true }, current => driver.browse(input, current));
+      return this.#exclusive(key, { ...context, stopping: true }, current => {
+        this.#autonomousBrowseExpectation(key, current);
+        return driver.browse(input, current);
+      });
     }
     return this.#exclusive(key, context, async current => {
       const expected = this.#account(key); if (expected.activeOperation) deny('RESULT_UNKNOWN');
+      this.#autonomousBrowseExpectation(key, current, { initiallyStopped: input.action === 'open' });
       this.#pace(key, 'read', current);
+      current.onBrowseDispatch?.();
       // The browse driver verifies identity in a separate creator tab before
       // and after reading. Generic account() would navigate away from the feed.
       const result = await driver.browse(input, { ...current, accountId: expected.accountId });

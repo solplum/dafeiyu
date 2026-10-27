@@ -11,7 +11,7 @@ import { createTokenAccounting, tokenPrompt, registerTokenStatusTool } from './t
 import { createContextGuard } from './context-guard.js';
 import { createDesktopContextControl } from './desktop-context-control.js';
 import { AutonomyEngine } from './autonomy-engine.js';
-import { createAutonomyRunner } from './autonomy-runner.js';
+import { createAutonomyRunner, createAutonomyUserPriority } from './autonomy-runner.js';
 import { PhoneTools } from './phone-tools.js';
 import { MemeManager } from './meme-manager.js';
 import { VoiceProcessor } from './voice-processor.js';
@@ -191,7 +191,7 @@ export async function createCompanion(ctx, config = {}, { capabilities, controlA
   let backgroundProbeActive = false;
   let lastReceivedAt = null;
   const beginMaintenance = () => {
-    if (disposed || maintenance || socialAccounts.busy || tokenAccounting?.active > 0 || incomingActive > 0 || backgroundTasks?.status?.busy || Number(nativeOneBot?.status?.pending || 0) > 0 || phoneTools.active > 0 || voiceProcessor.active > 0 || voiceOutput.active > 0 || biliBrowser.status.active > 0 || biliBrowser.cleanupPending || douyinBrowser.active > 0 || douyinBrowser.cleanupPending) return null;
+    if (disposed || maintenance || Boolean(autonomy?.active) || socialAccounts.busy || tokenAccounting?.active > 0 || incomingActive > 0 || backgroundTasks?.status?.busy || Number(nativeOneBot?.status?.pending || 0) > 0 || phoneTools.active > 0 || voiceProcessor.active > 0 || voiceOutput.active > 0 || biliBrowser.status.active > 0 || biliBrowser.cleanupPending || douyinBrowser.active > 0 || douyinBrowser.cleanupPending) return null;
     maintenance = true;
     let released = false;
     return () => { if (!released) { released = true; maintenance = false; } };
@@ -333,8 +333,16 @@ export async function createCompanion(ctx, config = {}, { capabilities, controlA
       }
       nativeOneBot.backgroundTasks = backgroundTasks;
     }
+    const autonomyPriority = createAutonomyUserPriority({ ctx, resolveOwner: agent => getExecutionContext({ agent }), getAutonomy: () => autonomy });
+    disposers.push(() => autonomyPriority.dispose());
     autonomy = new AutonomyEngine({ memory: lifeMemory, tokenBudget: executionTokenBudget,
-      run: createAutonomyRunner({ ctx, controlAccess, tokenBudget: executionTokenBudget }),
+      run: createAutonomyRunner({ ctx, controlAccess, tokenBudget: executionTokenBudget, socialAccounts, isOpen: () => !disposed && !maintenance }),
+      browseReady: (platform, { duringExecution = false } = {}) => {
+        if (platform !== 'douyin') return false;
+        const row = socialAccounts.snapshot().platforms.find(row => row.platform === platform);
+        return row?.state === 'bound' && !row.safetyPause && !row.blocked
+          && (duringExecution || row.driverConfigured === true && !row.cleanupRequired && row.browse?.state === 'stopped');
+      },
       scopes: () => qqAccounts.filter((account) => account.enabled).map((account) => ({ accountId: account.qq, identityId: account.activeIdentityId })),
       greetingScopes: () => {
         const profile = activeQQIdentity({ ownerQq, qqAccounts }, ownerQq);
@@ -345,7 +353,7 @@ export async function createCompanion(ctx, config = {}, { capabilities, controlA
         return !disposed && !maintenance && profile?.identity.id === scope?.identityId
           && currentOneBotReady({ socket: qqGateway.wsClient, connectedAtMs: qqGateway.connectedAtMs });
       },
-      isBusy: () => disposed || maintenance || incomingActive > 0 || Number(nativeOneBot?.status?.pending || 0) > 0 || Number(backgroundTasks?.status?.active || 0) > 0,
+      isBusy: () => disposed || maintenance || autonomyPriority.busy || incomingActive > 0 || Number(nativeOneBot?.status?.pending || 0) > 0 || Number(backgroundTasks?.status?.active || 0) > 0,
       send: async ({ scope, text }, { authorize, signal }) => {
         const profile = activeQQIdentity({ ownerQq, qqAccounts }, scope.accountId);
         const connection = { socket: qqGateway.wsClient, connectedAtMs: qqGateway.connectedAtMs };

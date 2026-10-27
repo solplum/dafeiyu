@@ -69,12 +69,11 @@ test('unsupported activity kinds and greeting browser mixtures cannot create a n
     assert.equal(f.prompts.length, 0);
   }
 });
-test('native autonomous browser requires a real read, meters actual tools and closes its exact space', async () => {
-  const f = fixture('browse'), usage = [];
+test('legacy Bilibili browser execution cannot fall back to the old generic browser tools', async () => {
+  const f = fixture('browse');
   const result = await f.runner({ id: 'auto-browser-123', kind: 'browse', platform: 'bilibili', topic: '摄影' },
-    { signal: new AbortController().signal, authorize: () => true, context: '', onUsage: (mode) => usage.push(mode) });
-  assert.equal(result.status, 'succeeded'); assert.deepEqual(f.calls.map((call) => call.name), ['ego_navigate', 'ego_snapshot', 'ego_space_close']);
-  assert.equal(f.calls[2].arguments.name, 'fixed-owned-space'); assert.ok(!f.restrictions[0].allow.includes('bash')); assert.ok(usage.includes('playing'));
+    { signal: new AbortController().signal, authorize: () => true, context: '' });
+  assert.equal(result.status, 'failed'); assert.equal(f.creations.length, 0); assert.equal(f.calls.length, 0);
 });
 
 const scoped = { accountId: '100', identityId: 'default' };

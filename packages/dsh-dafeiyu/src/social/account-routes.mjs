@@ -1,7 +1,7 @@
 import { allowed, deny, exactKeys } from './platforms.mjs';
 
 export const SOCIAL_ACCOUNT_ROUTES = Object.freeze({
-  'social/accounts': 'GET', 'social/hold': 'POST', 'social/resume': 'POST', 'social/login/start': 'POST', 'social/login/image': 'POST', 'social/login/check': 'POST', 'social/login/close': 'POST',
+  'social/accounts': 'GET', 'social/check-browser': 'POST', 'social/hold': 'POST', 'social/resume': 'POST', 'social/login/start': 'POST', 'social/login/image': 'POST', 'social/login/check': 'POST', 'social/login/close': 'POST',
   'social/account/confirm': 'POST', 'social/read': 'POST', 'social/browse': 'POST', 'social/prepare': 'POST',
   'social/approve': 'POST', 'social/execute': 'POST', 'social/cancel': 'POST', 'social/acknowledge': 'POST', 'social/recover-executor': 'POST', 'social/stop-executor': 'POST',
 });
@@ -36,6 +36,7 @@ export async function socialAccountRoute(endpoint, manager, body, context) {
   if (!manager) deny('DRIVER_UNAVAILABLE'); if (!allowed(context.authorize)) deny('FORBIDDEN');
   let result;
   if (endpoint === 'social/accounts') result = { accounts: manager.snapshot() };
+  else if (endpoint === 'social/check-browser') result = await manager.checkBrowser(body, context);
   else if (endpoint === 'social/hold') result = manager.holdPlatform(body, context);
   else if (endpoint === 'social/resume') result = manager.resumePlatform(body, context);
   else if (endpoint === 'social/login/start') result = await manager.startLogin(body, context);

@@ -34,6 +34,7 @@ function fakeNative(f, options = {}) {
       evaluate: async (...args) => { const [fn, arg] = args;
         if (typeof fn === 'string' && args.length !== 1) throw new TypeError('String expressions accept exactly one argument');
         events.push(['evaluate', label, args.length]);
+        if (options.rejectInternalEvaluate && p.current.startsWith('chrome:')) throw Error('PRIVATE_INTERNAL_PAGE_ERROR');
         if (typeof fn === 'function') return fn(arg);
         if (fn === '(()=>2+2)()') return 4;
         return options.mediaPause === false ? false : true; },
@@ -52,7 +53,7 @@ function fakeNative(f, options = {}) {
   const task = { spaceId: 14, name: binding.spaceName, ownership: 'agent',
     page(label) { assert(pages.has(label)); return pages.get(label); },
     tabs: async () => [...pages.values()].map(p => ({ label: p.label, page: p, targetId: p.targetId, url: p.current, openedBy: p.openedBy })),
-    newPage: async () => { newPages++; const label = 'p' + (newPages + 1); events.push(['newPage', label]); return add(label); } };
+    newPage: async () => { newPages++; const label = 'p' + (newPages + 1); events.push(['newPage', label]); return add(label, options.newPageUrl || 'about:blank'); } };
   const spawnProcess = (exe, args, opts) => {
     invocation = { exe, args, opts }; const child = new EventEmitter();
     child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough(); child.signals = [];
@@ -63,7 +64,7 @@ function fakeNative(f, options = {}) {
       if (options.output) { child.stdout.write(options.output); child.emit('close', 0); return; }
       try {
         const fn = new AsyncFunction('listTaskSpaces', 'taskSpace', 'console', script);
-        await fn(async () => [{ id: 14, name: options.name || binding.spaceName, ownership: options.ownership || 'agent' }],
+        await fn(async () => options.missingSpace ? [] : [{ id: 14, name: options.name || binding.spaceName, ownership: options.ownership || 'agent' }],
           async id => { taskCalls++; assert.equal(id, 14); return task; },
           { log(value) { child.stderr.write('private log must not surface\n'); child.stdout.write(value + '\n'); } });
         options.beforeClose?.(); child.emit('close', 0);
@@ -229,13 +230,66 @@ test('native launch preserves only the two non-secret harness identity variables
 
 test('bounded diagnostics retain only fixed stage and error type, without message or stack', async t => {
   const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake);
-  await assert.rejects(runtime.run("throw new TypeError('PRIVATE_CONTENT_MUST_NOT_RETURN');const result={};", context), e => e.code === 'BROWSER_UNKNOWN' && !e.message.includes('PRIVATE'));
-  assert.deepEqual(runtime.lastDiagnostic, { phase: 'script-body', name: 'TypeError' });
+  await assert.rejects(runtime.run("throw new TypeError('PRIVATE_CONTENT_MUST_NOT_RETURN');const result={};", context), e => e.code === 'BROWSER_UNKNOWN' && !e.message.includes('PRIVATE')
+    && e.diagnostic.phase === 'script-body' && e.diagnostic.name === 'TypeError' && e.diagnostic.code === 'BROWSER_UNKNOWN');
+  assert.deepEqual(runtime.lastDiagnostic, { phase: 'script-body', name: 'TypeError', code: 'BROWSER_UNKNOWN' });
   assert(!JSON.stringify(runtime.lastDiagnostic).includes('PRIVATE'));
 });
 
+test('a newly owned internal p2 is normalized before media evaluation and target navigation', async t => {
+  const f = fixture(t), fake = fakeNative(f, { newPageUrl: 'chrome://newtab/', rejectInternalEvaluate: true }), runtime = make(f, fake);
+  const result = await runtime.run("await browser.openOrReuseTab('https://www.douyin.com/?recommend=1');const result={url:await page.url()};", context);
+  assert.equal(result.url, 'https://www.douyin.com/?recommend=1');
+  const events = fake.events.filter(row => row[1] === 'p2');
+  assert.deepEqual(events.filter(row => row[0] === 'goto').map(row => row[2]), ['about:blank', 'https://www.douyin.com/?recommend=1']);
+  assert(events.findIndex(row => row[0] === 'goto') < events.findIndex(row => row[0] === 'evaluate'));
+  const state = JSON.parse(fs.readFileSync(f.state));
+  assert.deepEqual(state.createdLabels, ['p2']); assert.equal(state.pending, false); assert.equal(state.unknown, false);
+});
 
-test('pinned native embedded Node executes the exact envelope with pure local arithmetic', { skip: !verifyNativeEgoCli() }, () => {
+test('new page normalization never adopts an unexpected existing destination', async t => {
+  const f = fixture(t), fake = fakeNative(f, { newPageUrl: 'https://www.douyin.com/unexpected' }), runtime = make(f, fake);
+  await assert.rejects(runtime.run("await browser.openOrReuseTab('https://www.douyin.com/?recommend=1');const result={};", context), { code: 'BINDINGS_REQUIRED' });
+  assert(!fake.events.some(row => ['goto', 'evaluate', 'cdp'].includes(row[0]) && row[1] === 'p2'));
+  assert.equal(fake.newPages, 1);
+});
+
+test('fixed browse timeout diagnostics survive SocialAccountError without exposing private exception data', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake);
+  await assert.rejects(runtime.run("__dfyPhase('browse-navigation-wait');const e=new Error('PRIVATE_URL_AND_DOM');e.name='TimeoutError';e.code='PRIVATE_TOKEN';throw e;const result={};", context), e => {
+    assert.deepEqual(e.diagnostic, { phase: 'browse-navigation-wait', name: 'TimeoutError', code: 'TIMEOUT' });
+    assert(!JSON.stringify(e).includes('PRIVATE')); return e.code === 'BROWSER_UNKNOWN';
+  });
+  assert.deepEqual(runtime.status().lastDiagnostic, { phase: 'browse-navigation-wait', name: 'TimeoutError', code: 'TIMEOUT' });
+  const state = JSON.parse(fs.readFileSync(f.state)); assert.equal(state.pending, true); assert.equal(state.unknown, true);
+  await assert.rejects(runtime.run('const result={};', context), { code: 'DRIVER_UNAVAILABLE' });
+  assert.equal(fake.children.length, 1, 'diagnostics do not release unknown occupancy or retry');
+});
+
+test('unknown diagnostic stage names and native exception codes are never projected', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake);
+  await assert.rejects(runtime.run("__dfyPhase('PRIVATE_STAGE');const e=new Error('PRIVATE_MESSAGE');e.name='PRIVATE_NAME';e.code='PRIVATE_CODE';throw e;const result={};", context), e => {
+    assert.deepEqual(e.diagnostic, { phase: 'script-body', name: 'Error', code: 'BROWSER_UNKNOWN' });
+    assert(!JSON.stringify(e).includes('PRIVATE')); return e.code === 'BROWSER_UNKNOWN';
+  });
+});
+
+test('a new successful native invocation clears a previous known failure diagnostic', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake);
+  await assert.rejects(runtime.run("__dfyPhase('browse-identity-read');throw Error('BINDINGS_REQUIRED');const result={};", context), e => {
+    assert.deepEqual(e.diagnostic, { phase: 'browse-identity-read', name: 'Error', code: 'BINDINGS_REQUIRED' }); return e.code === 'BINDINGS_REQUIRED';
+  });
+  assert.equal(runtime.status().lastDiagnostic.phase, 'browse-identity-read');
+  await runtime.run('const result={ok:true};', context);
+  assert.equal(runtime.status().lastDiagnostic, null);
+});
+
+
+// Even pure CLI arithmetic is opt-in: ordinary offline regression must not
+// initialize the installed browser when a newly approved build is present.
+test('pinned native embedded Node executes the exact envelope with pure local arithmetic', {
+  skip: process.env.DFY_NATIVE_LOCAL_MATH !== '1' || !verifyNativeEgoCli(),
+}, () => {
   const marker = '@@DFY_NATIVE_LOCAL_MATH@@';
   const script = nativeEgoEnvelope('return {value:2+2};', marker);
   assert(!script.includes('await(')); assert(!script.includes('taskSpace')); assert(!script.includes('page.'));
@@ -424,4 +478,148 @@ test('reloaded unknown needs owner ACK and a live recovery maintenance PID canno
   fs.unlinkSync(lock);
   const result=await m.manager.recoverExecutor(m.body(),context);
   assert.equal(result.recovered,true);assert.equal(JSON.parse(fs.readFileSync(f.state)).unknown,false);
+});
+
+
+test('native readiness starts unverified and metadata checks never access a platform Page', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake);
+  assert.equal(runtime.available, true); assert.equal(runtime.nativeReady, false);
+  assert.equal(runtime.status().readiness, 'not-checked'); assert.equal(fake.children.length, 0);
+  const result = await runtime.checkMetadata(context);
+  assert.equal(result.ready, true); assert.equal(runtime.nativeReady, true);
+  assert.equal(fake.events.length, 0, 'no evaluate, goto, click, newPage, close or media call');
+  assert.equal(fs.existsSync(f.state), false, 'metadata verification never writes the owned journal');
+  assert.equal(fake.taskCalls, 1); assert.equal(fake.newPages, 0);
+  assert(!JSON.stringify(result).includes(binding.spaceName));
+});
+
+test('missing or changed native ownership is a failed metadata proof, never a new login or binding', async t => {
+  for (const options of [{ missingSpace: true }, { ownership: 'user' }, { name: 'changed-space' }]) {
+    const f = fixture(t), fake = fakeNative(f, options), runtime = make(f, fake);
+    const bytes = fs.readFileSync(f.file, 'utf8');
+    const result = await runtime.checkMetadata(context);
+    assert.equal(result.ready, false); assert.equal(result.state, 'unconfirmed'); assert.equal(runtime.nativeReady, false);
+    assert.equal(fake.taskCalls, 0); assert.equal(fake.newPages, 0); assert.equal(fake.events.length, 0);
+    assert.equal(fs.readFileSync(f.file, 'utf8'), bytes); assert.equal(fs.existsSync(f.state), false);
+  }
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake); fake.pages.get('p1').openedBy = 'unknown';
+  assert.equal((await runtime.checkMetadata(context)).reason, 'identity-page-unavailable');
+  assert.equal(fake.events.length, 0);
+});
+
+test('metadata evidence expires, rejects clock rollback and is not reused after binding, CLI or runtime changes', async t => {
+  let now = 1700000000000, pin = true;
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake, { now: () => now, verifyCli: () => pin, metadataTtlMs: 1000 });
+  await runtime.checkMetadata(context); now += 1000;
+  assert.equal(runtime.nativeReady, false); assert.equal(runtime.status().readiness, 'expired');
+  now -= 1001; assert.equal(runtime.nativeReady, false);
+  now += 2; await runtime.checkMetadata(context); pin = false; assert.equal(runtime.nativeReady, false);
+  pin = true; f.write({ ...binding, spaceId: 15 }); assert.equal(runtime.nativeReady, false);
+  assert.equal(make(f, fake).nativeReady, false);
+  assert.equal(fake.children.length, 2, 'status queries never launch another check');
+});
+
+test('metadata check rejects authority, binding, state, CLI and store changes during its await', async t => {
+  for (const kind of ['owner', 'binding', 'state', 'cli', 'store']) {
+    let allowed = true, pin = true, current = true;
+    const f = fixture(t), options = {}, fake = fakeNative(f, options), runtime = make(f, fake, { verifyCli: () => pin });
+    options.beforeClose = () => {
+      if (kind === 'owner') allowed = false;
+      if (kind === 'binding') f.write({ ...binding, spaceId: 15 });
+      if (kind === 'state') fs.writeFileSync(f.state, '{}', { mode: 0o600 });
+      if (kind === 'cli') pin = false;
+      if (kind === 'store') current = false;
+    };
+    await assert.rejects(runtime.checkMetadata({ authorize: () => allowed, isCurrent: () => current }));
+    assert.equal(runtime.nativeReady, false); assert.equal(fake.events.length, 0);
+  }
+});
+
+test('metadata checking is exclusive and abort closes its own child without platform effects', async t => {
+  const f = fixture(t), fake = fakeNative(f, { hang: true, closeOnKill: true }), runtime = make(f, fake);
+  const controller = new AbortController(), pending = runtime.checkMetadata({ ...context, signal: controller.signal });
+  await assert.rejects(runtime.checkMetadata(context), { code: 'BUSY' });
+  await assert.rejects(runtime.run('const result={};', context), { code: 'DRIVER_UNAVAILABLE' });
+  controller.abort(); await assert.rejects(pending);
+  assert.deepEqual(fake.children[0].signals, ['SIGTERM']); assert.equal(runtime.children.size, 0);
+  assert.equal(runtime.nativeReady, false); assert.equal(fake.events.length, 0); assert.equal(fs.existsSync(f.state), false);
+});
+
+test('GET account status distinguishes configuration and current metadata without launching any process', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake), m = nativeManager(f, runtime, { safetyPause: null });
+  const before = fs.readFileSync(m.file, 'utf8');
+  let value = await socialAccountRoute('social/accounts', m.manager, {}, context);
+  let row = value.accounts.platforms.find(row => row.platform === 'douyin');
+  assert.equal(row.driverConfigured, true); assert.equal(row.driverAvailable, false); assert.equal(row.browser.state, 'not-checked');
+  assert.equal(fake.children.length, 0); assert.equal(fs.readFileSync(m.file, 'utf8'), before);
+  value = await socialAccountRoute('social/check-browser', m.manager, { platform: 'douyin', revision: m.manager.snapshot().revision }, context);
+  assert.equal(value.browser.ready, true); assert.equal(fake.children.length, 1);
+  row = (await socialAccountRoute('social/accounts', m.manager, {}, context)).accounts.platforms.find(row => row.platform === 'douyin');
+  assert.equal(row.driverAvailable, true); assert.equal(fake.children.length, 1);
+  assert.equal(fs.readFileSync(m.file, 'utf8'), before); assert.equal(fake.events.length, 0);
+  await assert.rejects(socialAccountRoute('social/check-browser', m.manager, { platform: 'x', revision: m.manager.snapshot().revision }, context), { code: 'INVALID_REQUEST' });
+});
+
+test('business success updates metadata evidence while failed ownership invalidates it; stop remains allowed', async t => {
+  const f = fixture(t), options = {}, fake = fakeNative(f, options), runtime = make(f, fake);
+  await runtime.run('const result={ok:true};', context); assert.equal(runtime.nativeReady, true);
+  options.missingSpace = true;
+  await assert.rejects(runtime.run('const result={ok:true};', context), { code: 'BINDINGS_REQUIRED' });
+  assert.equal(runtime.nativeReady, false);
+  options.missingSpace = false;
+  assert.equal((await runtime.stop(context)).stopped, true); assert.equal(runtime.nativeReady, true);
+});
+
+
+test('browse cooldown snapshot projects the persisted read gap and hour ceiling without consuming requests', t => {
+  const f = fixture(t); let now = 1700000000000;
+  const manager = new SocialAccounts({ directory: f.root, now: () => now });
+  const write = requestHistory => manager.store.transact(state => { state.accounts.douyin = { state: 'bound', accountId: 'fixture', generation: 1, requestHistory }; }, { authorize: () => true });
+  const remaining = () => manager.snapshot().platforms.find(row => row.platform === 'douyin').browse.cooldownRemainingMs;
+  write([]); assert.equal(remaining(), 0);
+  write([{ kind: 'read', at: now - 1000 }]); const bytes = fs.readFileSync(path.join(f.root, 'accounts.json'), 'utf8');
+  assert.equal(remaining(), 14000); assert.equal(fs.readFileSync(path.join(f.root, 'accounts.json'), 'utf8'), bytes);
+  now += 14000; assert.equal(remaining(), 0);
+  const start = now;
+  write(Array.from({ length: 60 }, (_, index) => ({ kind: 'read', at: start - 1800000 + index * 15000 })));
+  assert.equal(remaining(), 1800000); now += 1800000; assert.equal(remaining(), 0);
+  write([{ kind: 'read', at: now + 60001 }]); assert.equal(remaining(), null);
+});
+
+
+test('browse status is a pure local projection and durable owned pages prevent a reloaded driver claiming stopped', async t => {
+  const f = fixture(t), fake = fakeNative(f), runtime = make(f, fake), manager = nativeManager(f, runtime, { safetyPause: null });
+  const status = () => manager.manager.snapshot().platforms.find(row => row.platform === 'douyin').browse.state;
+  assert.equal(status(), 'stopped'); assert.equal(fake.children.length, 0); assert.equal(fs.existsSync(f.state), false);
+  await runtime.run("await browser.openOrReuseTab('https://www.douyin.com/?recommend=1');const result={ok:true};", context);
+  assert.equal(status(), 'active');
+  const fresh = make(f, fake), freshDriver = new BrowserAccountDriver({ key: 'douyin', directory: f.directory, runtime: fresh });
+  assert.equal(freshDriver.browseState, 'stopped', 'ephemeral driver starts with no observation');
+  assert.equal(freshDriver.browseStatus().state, 'active', 'persistent page journal prevents takeover across reload');
+  const count = fake.children.length, bytes = fs.readFileSync(f.state, 'utf8');
+  assert.equal(freshDriver.browseStatus().state, 'active'); assert.equal(fake.children.length, count); assert.equal(fs.readFileSync(f.state, 'utf8'), bytes);
+  await fresh.stop(context); assert.equal(freshDriver.browseStatus().state, 'stopped');
+  await assert.rejects(fresh.run("throw new TypeError('fixture');const result={};", context));
+  assert.equal(freshDriver.browseStatus().state, 'unknown');
+});
+
+
+test('autonomous browse expectations and dispatch callback are checked inside the account lock before pacing or driver access', async t => {
+  const f = fixture(t); let calls = 0, dispatches = 0, state = 'stopped', now = 1700000000000;
+  const driver = { browseStatus: () => ({ state }), async browse(input) { calls++; state = input.action === 'stop' ? 'stopped' : 'active'; return { ok: true, accountId: 'same-account', state, current: null }; } };
+  const manager = new SocialAccounts({ directory: f.root, drivers: { douyin: driver }, now: () => now });
+  manager.store.transact(store => { store.accounts.douyin = { state: 'bound', accountId: 'same-account', generation: 3 }; }, context);
+  const own = { ...context, autonomousExpectation: { accountId: 'same-account', generation: 3, initiallyStopped: true }, onBrowseDispatch() { dispatches++; } };
+  const before = fs.readFileSync(path.join(f.root, 'accounts.json'), 'utf8');
+  for (const patch of [{ accountId: 'other' }, { generation: 2 }]) {
+    await assert.rejects(manager.browse('douyin', { action: 'open' }, { ...own, autonomousExpectation: { ...own.autonomousExpectation, ...patch } }), { code: 'AUTONOMY_PRECONDITION' });
+  }
+  state = 'active'; await assert.rejects(manager.browse('douyin', { action: 'open' }, own), { code: 'AUTONOMY_PRECONDITION' });
+  assert.equal(dispatches, 0); assert.equal(calls, 0); assert.equal(fs.readFileSync(path.join(f.root, 'accounts.json'), 'utf8'), before);
+  state = 'stopped'; await manager.browse('douyin', { action: 'open' }, own); assert.equal(calls, 1); assert.equal(dispatches, 1);
+  await assert.rejects(manager.browse('douyin', { action: 'current' }, { ...own, autonomousExpectation: { ...own.autonomousExpectation, initiallyStopped: false } }), { code: 'COOLDOWN' });
+  assert.equal(calls, 1); assert.equal(dispatches, 1);
+  await assert.rejects(manager.browse('douyin', { action: 'stop' }, { ...own, autonomousExpectation: { ...own.autonomousExpectation, generation: 2 } }), { code: 'AUTONOMY_PRECONDITION' });
+  assert.equal(calls, 1);
+  await manager.browse('douyin', { action: 'stop' }, own); assert.equal(calls, 2); assert.equal(dispatches, 1);
 });

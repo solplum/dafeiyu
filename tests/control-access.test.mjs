@@ -499,3 +499,20 @@ test('native child teardown uncertainty protects the GUI lease and returns unkno
     { status: 'unknown', executor: 'spawn', errorCode: 'cleanup-unconfirmed' });
   assert.equal(starts, 1); assert.equal(f.access.snapshot().cleanupPending, true);
 });
+
+test('native account autonomy leases admit only its private Douyin tool and exact stop cleanup', async () => {
+  const f = fixture(), agent = f.addAgent(), other = f.addAgent(); let allowed = true;
+  await assert.rejects(f.execute(agent, 'dafeiyu_autonomous_douyin', { action: 'open' }), { code: 'DENIED' });
+  await f.access.runAutonomousAccount({ agent, taskId: 'auto-native-account', platform: 'douyin', authorize: () => allowed }, async grant => {
+    await f.execute(agent, 'dafeiyu_autonomous_douyin', { action: 'open' });
+    for (const [name, args] of [['ego_space_open', {}], ['ego_snapshot', {}], ['dafeiyu_social_browse', {}], ['dafeiyu_autonomous_douyin', { action: 'open', platform: 'bilibili' }]])
+      await assert.rejects(f.execute(agent, name, args), { code: 'DENIED' });
+    await assert.rejects(f.execute(other, 'dafeiyu_autonomous_douyin', { action: 'open' }), { code: 'DENIED' });
+    allowed = false;
+    await assert.rejects(f.execute(agent, 'dafeiyu_autonomous_douyin', { action: 'current' }), { code: 'DENIED' });
+    grant.assertCleanupAuthorized(); await f.execute(agent, 'dafeiyu_autonomous_douyin', { action: 'stop' });
+    allowed = true;
+  });
+  assert.equal(f.access.snapshot().busy, false);
+  await assert.rejects(f.access.runAutonomousAccount({ agent, taskId: 'auto-wrong-platform', platform: 'bilibili', authorize: () => true }, () => assert.fail('must not dispatch')), { code: 'CONTROL_OWNER_REQUIRED' });
+});

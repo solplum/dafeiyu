@@ -14,8 +14,9 @@ const source = shipped.replace('() => h(Panel),', '() => h(PlatformAccountsPanel
 
 // The actual shipped component is rendered; browser/network/QQ are fixtures.
 function fixture(t) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dfy-account-ui-")); let writes = 0, reads = 0, uncertain = false, forbidden = false, browseCalls = [], browseFailure, browseStopGate, browseVideoId = '1234567890123456789';
-  const driver = { nextAvailable: true, capabilities: () => ({profile:"implemented-not-verified",comment:"implemented-not-verified"}),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dfy-account-ui-")); let writes = 0, reads = 0, checks = 0, uncertain = false, forbidden = false, browseCalls = [], browseFailure, browseStopGate, browseState = 'stopped', browseVideoId = '1234567890123456789';
+  let browser = null;
+  const driver = { browseStatus: () => ({ state: browseState }), async checkBrowser() { checks++; browser = { configured: true, ready: true, state: 'ready', reason: null, checkedAt: '2026-10-27T00:00:00Z', expiresAt: '2026-10-27T00:01:00Z' }; return browser; }, nextAvailable: true, capabilities: () => ({profile:"implemented-not-verified",comment:"implemented-not-verified"}),
     async startLogin(){return {image:{mime:"image/png",base64:"iVBORw0KGgo="}};},
     async checkLogin(){return {loggedIn:true,accountId:"123",name:"fixture"};},
     async account(){return {loggedIn:true,accountId:"123",name:"fixture"};},
@@ -25,6 +26,9 @@ function fixture(t) {
       if (request.action === 'stop' && browseStopGate) await browseStopGate;
       if (!context.authorize()) throw Object.assign(Error('denied'), { code: 'FORBIDDEN' });
       if (browseFailure) { const code = browseFailure; browseFailure = undefined; throw Object.assign(Error(code), { code }); }
+      browseState = request.action === 'stop' ? 'stopped' : 'active';
+      if (browser?.lifecycle !== undefined) browser = { ...browser, lifecycle: request.action === 'stop' ? 'closed' : 'active',
+        state: request.action === 'stop' ? 'ready-to-start' : 'ready', ready: true, canStartNewActivity: request.action === 'stop', activityReady: request.action !== 'stop' };
       const current = { platformVideoId: browseVideoId, id: 'media-' + (request.action === 'next' ? 'b' : 'a').repeat(64), url: 'https://www.douyin.com/', author: '离线作者', description: '离线视频页面文字', media: { muted: true, paused: true, currentTime: 2, duration: 30 } };
       return { ok: true, action: request.action, accountId: '123', state: request.action === 'stop' ? 'stopped' : 'active', current: request.action === 'stop' ? null : current, history: request.action === 'stop' ? [] : [current] };
     },
@@ -91,7 +95,7 @@ function fixture(t) {
   const button = (label) => nodes().find((node) => node.type === 'button' && text(node) === label);
   const article = (label) => nodes().find((node) => node.type === 'article' && node.props['aria-label'] === label + '连接状态');
   async function click(label) { const node = button(label) || nodes().find(node => node.type === 'summary' && text(node) === label); assert(node, 'Missing button: ' + label); assert.equal(Boolean(node.props.disabled), false); node.props.onClick(); await flush(); }
-  return { manager, browseCalls, holdStop(value) { browseStopGate = value; }, videoId(value) { browseVideoId = value; }, failBrowse(code) { browseFailure = code; }, get writes(){return writes;}, get reads(){return reads;}, uncertain(){uncertain=true;}, revoke(){forbidden=true;}, social, calls, timers, nodes, text, button, article, click, flush,
+  return { manager, browseCalls, get checks() { return checks; }, setBrowser(value) { browser = value; driver.runtime = { backend: 'native-ego', status: () => ({ configured: browser.configured, nativeReady: browser.activityReady === undefined ? browser.ready : browser.activityReady, lifecycle: browser.lifecycle, canStartNewActivity: browser.canStartNewActivity, activityReady: browser.activityReady, metadata: browser }) }; }, holdStop(value) { browseStopGate = value; }, videoId(value) { browseVideoId = value; }, failBrowse(code) { browseFailure = code; }, get writes(){return writes;}, get reads(){return reads;}, uncertain(){uncertain=true;}, revoke(){forbidden=true;}, social, calls, timers, nodes, text, button, article, click, flush,
     setGate(value) { gate = value; }, setReadGate(value) { readGate = value; }, result(value) { testResult = value; }, error(value) { failure = value; },
     async active(value) { host.__active = value; await flush(); },
     dispose() { for (const instance of instances.values()) for (const hook of instance.hooks) hook?.cleanup?.(); },
@@ -286,4 +290,45 @@ test('native failed recovery preserves the protection and never promotes unknown
   assert.equal(f.manager.snapshot().platforms.find(row => row.platform === 'douyin').cleanupRequired, true);
   assert(f.text().includes('CLEANUP_UNCONFIRMED')); assert(!f.text().includes('已按明确确认解除保护，没有重跑。'));
   assert(!f.text().includes('平台已返回编号')); assert.equal(f.writes, 0);
+});
+
+
+test('native browser configuration is not current availability and metadata verification is explicit', async t => {
+  const f = fixture(t); t.after(() => f.dispose()); await f.flush();
+  const ctx = { authorize: () => true };
+  f.manager.store.transact(state => { state.accounts.douyin = { state: 'bound', accountId: '123', name: 'fixture', generation: 1 }; }, { authorize: () => true });
+  f.setBrowser({ configured: true, ready: false, state: 'not-checked', checkedAt: null, expiresAt: null });
+  await f.click('刷新账号状态');
+  assert.equal(f.button('打开推荐').props.disabled, true); assert.equal(f.checks, 0); assert.equal(f.browseCalls.length, 0);
+  assert(f.text().includes('当前 Ego 空间尚未核验'));
+  await f.click('核验 Ego 浏览环境'); assert.equal(f.checks, 1); assert.equal(f.browseCalls.length, 0);
+  assert.equal(f.calls.filter(row => row.route === 'social/check-browser').length, 1);
+  assert.equal(f.button('打开推荐').props.disabled, false); assert(f.text().includes('没有访问平台页面'));
+  const expiry = [...f.timers.values()].at(-1); assert(expiry); expiry.fn(); await f.flush();
+  assert.equal(f.checks, 1); assert.equal(f.button('打开推荐').props.disabled, true);
+  assert(f.text().includes('这不代表账号已退出')); assert(f.text().includes('已绑定'));
+  assert.equal(f.button('停止').props.disabled, false); assert.equal(f.button('查看有限历史').props.disabled, false);
+  const stale = f.button('核验 Ego 浏览环境');
+  f.manager.holdPlatform({ platform: 'douyin', revision: f.manager.snapshot().revision, reason: 'owner-paused' }, ctx);
+  await f.click('刷新账号状态'); assert.equal(f.button('核验 Ego 浏览环境').props.disabled, true);
+  stale.props.onClick(); await f.flush(); assert.equal(f.checks, 1);
+});
+
+
+test('closed background browser entry opens one new activity while current and next require an active task', async t => {
+  const f = fixture(t); t.after(() => f.dispose()); await f.flush();
+  f.manager.store.transact(state => { state.accounts.douyin = { state: 'bound', accountId: '123', generation: 1 }; }, { authorize: () => true });
+  f.setBrowser({ configured: true, ready: true, state: 'ready-to-start', lifecycle: 'closed', canStartNewActivity: true, activityReady: false,
+    checkedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() });
+  await f.click('刷新账号状态');
+  assert.equal(f.button('打开推荐').props.disabled, false); assert.equal(f.button('读取当前').props.disabled, true); assert.equal(f.button('下一个').props.disabled, true);
+  assert(f.text().includes('后台浏览入口已核验')); assert(f.text().includes('登录资料保留')); assert(!f.text().includes('最近已核验 Ego 浏览空间'));
+  await f.button('读取当前').props.onClick(); await f.flush(); assert.equal(f.browseCalls.length, 0, 'a stale current handler cannot create a background activity');
+  await f.click('打开推荐'); assert.equal(f.browseCalls.length, 1); assert.equal(f.button('读取当前').props.disabled, false); assert.equal(f.button('下一个').props.disabled, false);
+  const staleOpen = f.button('打开推荐'), expiry = [...f.timers.values()].at(-1); expiry.fn(); await f.flush();
+  assert.equal(f.button('打开推荐').props.disabled, true); assert.equal(f.button('读取当前').props.disabled, true); assert.equal(f.button('下一个').props.disabled, true);
+  await staleOpen.props.onClick(); await f.flush(); assert.equal(f.browseCalls.length, 1, 'expired admission does not dispatch another open');
+  assert.equal(f.button('停止').props.disabled, false); await f.click('停止');
+  assert.equal(f.browseCalls.at(-1).action, 'stop'); assert(f.text().includes('本次浏览已结束，登录资料保留'));
+  assert.equal(f.button('打开推荐').props.disabled, false); assert.equal(f.button('读取当前').props.disabled, true);
 });

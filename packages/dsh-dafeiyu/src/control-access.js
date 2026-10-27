@@ -14,7 +14,7 @@ const validTask = (id) => typeof id === 'string' && /^[A-Za-z0-9:_-]{1,200}$/.te
 export function controlToolKind(name) {
   if (typeof name !== 'string') return null;
   if (name.startsWith('computer_')) return 'desktop';
-  if (name.startsWith('ego_')) return 'browser';
+  if (name.startsWith('ego_') || name === 'dafeiyu_autonomous_douyin') return 'browser';
   return null;
 }
 
@@ -180,6 +180,17 @@ export function createControlAccess({ ctx, getRuntime, resolveOwner = () => fals
     const prepared = exec && typeof exec === 'object' ? executions.get(exec) : undefined;
     let state = prepared || grants.get(exec?.agent);
     if (prepared && grants.get(exec.agent) !== prepared) return '此前回合已结束，此操作不会移交给新回合执行';
+    if (exec?.name === 'dafeiyu_autonomous_douyin') {
+      const args = exec.arguments, cleanup = args?.action === 'stop';
+      if (!state || state.kind !== 'autonomous' || state.accountPlatform !== 'douyin' || active !== state
+        || !valid(state, { cleanup }) || state.blocked && !cleanup || exec.signal?.aborted
+        || !args || Object.keys(args).some(key => !['action', 'expectedVideoId'].includes(key))
+        || !['open', 'current', 'next', 'stop', 'history'].includes(args.action)
+        || args.action !== 'next' && args.expectedVideoId !== undefined) return '自主浏览只允许当前活动的绑定抖音账号读取和停止';
+      executions.set(exec, state); return;
+    }
+    if (state?.accountPlatform) return '当前自主活动不能调用通用浏览器或其他工具';
+
     if (state?.kind === 'child' && (!valid(state) || !childToolAllowed(exec, state))) return '子任务仅获明确的界面权限，不能调用终端、文件、私人资料或其他技能';
     if (state?.kind === 'autonomous' && !isCleanup(exec, state)) {
       if (!valid(state) || !['dafeiyu_control_context', 'ego_space_open', 'ego_space_close', 'ego_snapshot', 'ego_navigate', 'ego_page_info', 'ego_scroll', 'ego_read_element', 'ego_wait'].includes(exec?.name)) return '自主浏览仅允许指定平台的读取、导航和滚动';
@@ -328,6 +339,13 @@ export function createControlAccess({ ctx, getRuntime, resolveOwner = () => fals
     stateOf(handle).hosts = [...hosts];
     return withLease(handle, 'browser', operation);
   }
+  async function runAutonomousAccount({ agent, taskId, signal, authorize, platform } = {}, operation) {
+    if (!real(agent) || !permitted(authorize) || platform !== 'douyin') throw fail('CONTROL_OWNER_REQUIRED');
+    const handle = make({ kind: 'autonomous', agent, taskId, signal, authorize, capabilities: ['browser'] });
+    const state = stateOf(handle); state.accountPlatform = platform;
+    return withLease(handle, 'browser', grant => operation({ ...grant,
+      assertCleanupAuthorized: () => { if (!valid(state, { cleanup: true }) || state.finished) throw fail('CONTROL_SCOPE_REVOKED'); } }));
+  }
   async function executeTrustedBrowserRead({ agent, space, script, signal, timeoutMs = 60000, cleanup = false } = {}, operation) {
     if (typeof operation !== 'function' || !/^dfy-douyin-[a-f0-9-]{36}$/.test(space || '')
       || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000
@@ -385,7 +403,7 @@ export function createControlAccess({ ctx, getRuntime, resolveOwner = () => fals
     return Object.freeze({ kind: state.kind, taskId: state.taskId, capabilities: Object.freeze([...state.capabilities]),
       space: state.space, browserSpace: state.space, leaseBusy: Boolean(active && active !== state) });
   }
-  return Object.freeze({ attach, bindOwner, bindProbe, reserveChild, spaceFor, withLease, runProbe, runChild, runAutonomous, executeTrustedBrowserRead, scopeFor, contextFor: scopeFor,
+  return Object.freeze({ attach, bindOwner, bindProbe, reserveChild, spaceFor, withLease, runProbe, runChild, runAutonomous, runAutonomousAccount, executeTrustedBrowserRead, scopeFor, contextFor: scopeFor,
     cancel(handle) { cancel(stateOf(handle)); },
     snapshot() { return { busy: Boolean(active), cleanupPending: active?.blocked === true,
       taskId: active?.taskId || null, inflight: active?.inflight || 0 }; },

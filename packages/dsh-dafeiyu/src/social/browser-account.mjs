@@ -48,6 +48,13 @@ export class BrowserAccountDriver {
   get supportsExecutorRecovery() { return this.runtime.backend === 'native-ego' && typeof this.runtime.recoverExecutor === 'function'; }
   recoverExecutor(context) { return this.runtime.recoverExecutor(context); }
   get available() { return this.runtime.available !== false; }
+  browseStatus() {
+    const durable = this.runtime.backend === 'native-ego' ? this.runtime.browseState : null;
+    if (durable === 'unknown') return { state: 'unknown' };
+    if (durable === 'active' || this.browseState === 'active') return { state: 'active' };
+    return { state: this.browseState === 'stopped' && (durable === null || durable === 'stopped') ? 'stopped' : 'unknown' };
+  }
+  checkBrowser(context) { if (typeof this.runtime.checkMetadata !== 'function') deny('OPERATION_UNAVAILABLE'); return this.runtime.checkMetadata(context); }
   #prefix(resume = false) {
     return `const name=${q(this.space)}; const known=(await taskSpaces.list()).find(x=>x.name===name);\n`
       + (resume ? `if(known?.ownership==='user') await taskSpaces.claim(known.id);\n` : '')
@@ -64,6 +71,17 @@ export class BrowserAccountDriver {
       if(!match||!match[1])return{loggedIn:false,state:'identity-binding-required'};
       const names=${identity.nameSelector ? `[...${identity.nameScope === 'parent' ? '(nodes[0].parentElement||nodes[0])' : 'document'}.querySelectorAll(${q(identity.nameSelector)})].filter(x=>{const r=x.getBoundingClientRect();return r.width>0&&r.height>0;})` : '[]'};
       return{loggedIn:true,accountId:${q(identity.prefix || '')}+match[1],name:(names.length===1?names[0].innerText||names[0].textContent:nodes[0].getAttribute('aria-label')||nodes[0].textContent||'').trim().slice(0,100)};})()`;
+  }
+  #identityReadinessExpression() {
+    const bindings = this.#bindings(), identity = bindings?.identity || (this.key === 'x' ? X_IDENTITY : null);
+    if (!identity?.selector || !identity.attribute || typeof identity.pattern !== 'string') return null;
+    // Readiness accepts any parseable platform identity. Waiting for the saved
+    // account would hide a real account switch behind a timeout.
+    return `(()=>{if((${this.#identityExpression()}).loggedIn===true)return true;
+      const visible=n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0;};
+      const risk=[...document.querySelectorAll('iframe[src*=captcha],iframe[src*=verify],[role=dialog],[id*=captcha],[class*=captcha]')].filter(visible).some(n=>n.tagName==='IFRAME'||/安全验证|实名认证|操作过于频繁|账号异常|验证身份|访问频繁/.test(n.innerText||''));
+      if(risk)return true;
+      return [...document.querySelectorAll('form,[role=dialog],[data-e2e*=login],[class*=login],[id*=login]')].filter(visible).some(n=>/扫码登录|二维码登录|手机号登录|手机登录|短信登录|密码登录|登录抖音创作者中心|请使用抖音扫码/.test(n.innerText||n.textContent||''));})()`;
   }
   #identityNavigation() {
     const url = this.#bindings()?.identity?.url;
@@ -85,7 +103,10 @@ export class BrowserAccountDriver {
     return this.runtime.run(body, context);
   }
   async account(context) {
-    const body = this.#prefix(context.resume === true) + `await checkOrigin();await assertSafety();${this.#identityNavigation()}await assertSafety();const result=await page.evaluate(${q(this.#identityExpression())});`;
+    const readiness = this.#identityReadinessExpression();
+    const body = this.#prefix(context.resume === true) + `await checkOrigin();await assertSafety();${this.#identityNavigation()}await assertSafety();`
+      + (readiness ? `await page.waitForFunction(${q(readiness)},{timeout:10000});await checkOrigin();await assertSafety();` : '')
+      + `const result=await page.evaluate(${q(this.#identityExpression())});`;
     return this.runtime.run(body, context);
   }
   async checkLogin(context) {
@@ -116,6 +137,24 @@ export class BrowserAccountDriver {
       + `const items=await page.evaluate(${q(expression)});if(!items.length&&await page.evaluate(${q(emptyExpression)})!==true)throw Error('BINDINGS_REQUIRED');await assertAccount();const result={ok:true,accountId:${q(this.#bindings().accountId)},operation:${q(input.operation)},target:${q(input.target || '')},items,empty:items.length===0,scope:${q(recipe.scope || 'specified-account-content')},emptyReason:items.length===0?${q(empty?.text || '')}:null};`;
     return this.runtime.run(body, context);
   }
+  // Manager-only finite read scope. Generic run/account/read never allocate.
+  async beginReadActivity(context) {
+    const bindings = this.#bindings();
+    if (!bindings?.accountId || bindings.accountId !== context.accountId) deny('ACCOUNT_MISMATCH');
+    const lifecycle = this.runtime.lifecycle;
+    if (lifecycle === undefined || lifecycle === 'legacy' || lifecycle === 'active') return false;
+    if (lifecycle !== 'closed' || typeof this.runtime.beginActivity !== 'function') deny('CLEANUP_UNCONFIRMED');
+    const result = await this.runtime.beginActivity(context);
+    if (result?.started !== true) deny('INVALID_RECEIPT');
+    return true;
+  }
+  async endReadActivity(context) {
+    const bindings = this.#bindings();
+    if (!bindings?.accountId || bindings.accountId !== context.accountId) deny('ACCOUNT_MISMATCH');
+    const result = await this.runtime.stop(context);
+    if (result?.stopped !== true || result.taskSpaceClosed !== true || result.spaceRetained !== false || result.browserStopped !== false) deny('CLEANUP_UNCONFIRMED');
+    return result;
+  }
   async browse(input, context) {
     if (this.key !== 'douyin') deny('INVALID_OPERATION');
     if (this.browseAccount && context.accountId && this.browseAccount !== context.accountId) {
@@ -127,7 +166,8 @@ export class BrowserAccountDriver {
     if (input.action === 'history') return local();
     if (input.action === 'stop') {
       const stopped = await this.runtime.stop(context); this.browseCurrent = null; this.browseState = 'stopped';
-      return { ...local(), history: [], browserStopped: stopped?.browserStopped !== false, spaceRetained: stopped?.spaceRetained === true };
+      return { ...local(), history: [], browserStopped: stopped?.browserStopped !== false, spaceRetained: stopped?.spaceRetained === true,
+        ...(stopped?.taskSpaceClosed === true ? { taskSpaceClosed: true } : {}) };
     }
     const bindings = this.#bindings();
     if (!bindings?.identity?.url || !bindings.accountId || bindings.accountId !== context.accountId) deny('BINDINGS_REQUIRED');
@@ -137,28 +177,29 @@ export class BrowserAccountDriver {
     const expectedPlatformVideoId = this.browseCurrent?.platformVideoId;
     if (input.action === 'next' && (this.browseCurrent?.identityKind !== 'platform-video-id'
       || typeof expectedPlatformVideoId !== 'string' || !/^[0-9]{10,25}(?![\s\S])/.test(expectedPlatformVideoId))) deny('BROWSE_NEXT_UNAVAILABLE');
+    if (input.action === 'open' && typeof this.runtime.beginActivity === 'function') await this.runtime.beginActivity(context);
     const { videoExpression, videoReady, openNavigationExpression, openNavigationReady, feedReady } = douyinBrowseExpressions(videoIdentity);
     const home = safeUrl(this.key, bindings.identity.url);
     // Resolve tab IDs from the current task space each round. Identity checks
     // use a separate creator tab and never navigate the video tab away.
-    const own = `const assertBrowseAccount=async()=>{const tabs=await browser.listTabs();const candidates=tabs.filter(t=>t.url===${q(home)});if(candidates.length>1)throw Error('BINDINGS_REQUIRED');if(candidates.length===1)await browser.switchTab(candidates[0].targetId);else await browser.openOrReuseTab(${q(home)},{wait:true,timeout:30000});await checkOrigin();await assertSafety();await page.waitForFunction(${q(`Boolean(document.querySelector(${q(bindings.identity.selector)}))`)},{timeout:10000});const own=await page.evaluate(${q(this.#identityExpression())});if(own?.loggedIn!==true||own.accountId!==${q(context.accountId)})throw Error('ACCOUNT_MISMATCH');};await assertBrowseAccount();\n`;
-    const selectFeed = `const isBrowseFeedUrl=(${isRecommendationUrl.toString()});const feedTabs=(await browser.listTabs()).filter(t=>isBrowseFeedUrl(t.url));if(feedTabs.length>1)throw Error('BINDINGS_REQUIRED');`;
-    let action = selectFeed + (input.action === 'open'
+    const own = `const assertBrowseAccount=async(recheck=false)=>{markBrowsePhase(recheck?'browse-return-identity-navigation':'browse-identity-navigation');const tabs=await browser.listTabs();const candidates=tabs.filter(t=>t.url===${q(home)});if(candidates.length>1)throw Error('BINDINGS_REQUIRED');if(candidates.length===1)await browser.switchTab(candidates[0].targetId);else await browser.openOrReuseTab(${q(home)},{wait:true,timeout:30000});await checkOrigin();await assertSafety();markBrowsePhase(recheck?'browse-return-identity-wait':'browse-identity-wait');await page.waitForFunction(${q(`Boolean(document.querySelector(${q(bindings.identity.selector)}))`)},{timeout:10000});markBrowsePhase(recheck?'browse-return-identity-read':'browse-identity-read');const own=await page.evaluate(${q(this.#identityExpression())});if(own?.loggedIn!==true||own.accountId!==${q(context.accountId)})throw Error('ACCOUNT_MISMATCH');};await assertBrowseAccount();\n`;
+    const selectFeed = `markBrowsePhase('browse-feed-select');const isBrowseFeedUrl=(${isRecommendationUrl.toString()});const feedTabs=(await browser.listTabs()).filter(t=>isBrowseFeedUrl(t.url));if(feedTabs.length>1)throw Error('BINDINGS_REQUIRED');`;
+    let action = selectFeed + `markBrowsePhase('browse-feed-navigation');` + (input.action === 'open'
       ? `if(feedTabs.length)await browser.switchTab(feedTabs[0].targetId);else await browser.openOrReuseTab(${q(DOUYIN_RECOMMEND)},{wait:true,timeout:30000});`
       : `if(feedTabs.length!==1)throw Error('BINDINGS_REQUIRED');await browser.switchTab(feedTabs[0].targetId);`);
     action += `await checkOrigin();await assertSafety();`;
     if (input.action === 'open') {
-      action += `await page.waitForFunction(${q(openNavigationReady)},{timeout:15000});await checkOrigin();await assertSafety();const navigation=await page.evaluate(${q(openNavigationExpression)});if(navigation==='landing'){await page.locator(${q(DOUYIN_RECOMMEND_LINK)}).click();await page.waitForFunction(${q(feedReady)},{timeout:15000});}else if(navigation!=='feed')throw Error('BINDINGS_REQUIRED');await checkOrigin();await assertSafety();if(!isBrowseFeedUrl(await page.url()))throw Error('BINDINGS_REQUIRED');`;
+      action += `markBrowsePhase('browse-navigation-wait');await page.waitForFunction(${q(openNavigationReady)},{timeout:15000});await checkOrigin();await assertSafety();markBrowsePhase('browse-navigation-read');const navigation=await page.evaluate(${q(openNavigationExpression)});if(navigation==='landing'){markBrowsePhase('browse-navigation-click');await page.locator(${q(DOUYIN_RECOMMEND_LINK)}).click();markBrowsePhase('browse-feed-wait');await page.waitForFunction(${q(feedReady)},{timeout:15000});}else if(navigation!=='feed')throw Error('BINDINGS_REQUIRED');await checkOrigin();await assertSafety();if(!isBrowseFeedUrl(await page.url()))throw Error('BINDINGS_REQUIRED');`;
     }
-    action += `await page.waitForFunction(${q(videoReady)},{timeout:15000});`;
+    action += `markBrowsePhase('browse-video-wait');await page.waitForFunction(${q(videoReady)},{timeout:15000});`;
     if (input.action === 'next') {
       // Consume the observation before dispatch. An unknown click cannot be
       // replayed with the same stale observation, even if the CLI exits.
       this.browseCurrent = null;
-      action += `const before=await page.evaluate(${q(videoExpression)});if(before?.id!==${q(input.expectedVideoId)}||before.platformVideoId!==${q(expectedPlatformVideoId)}||before.identityKind!=='platform-video-id')throw Error('BINDINGS_REQUIRED');await page.locator(${q(DOUYIN_NEXT)}).click();await page.waitForFunction(${q(`(async()=>{const v=await (${videoExpression});return Boolean(v&&v.identityKind==='platform-video-id'&&/^[0-9]{10,25}(?![\\s\\S])/.test(v.platformVideoId||'')&&v.platformVideoId!==${q(expectedPlatformVideoId)});})()`)},{timeout:10000});`;
+      action += `markBrowsePhase('browse-next-before');const before=await page.evaluate(${q(videoExpression)});if(before?.id!==${q(input.expectedVideoId)}||before.platformVideoId!==${q(expectedPlatformVideoId)}||before.identityKind!=='platform-video-id')throw Error('BINDINGS_REQUIRED');markBrowsePhase('browse-next-click');await page.locator(${q(DOUYIN_NEXT)}).click();markBrowsePhase('browse-next-wait');await page.waitForFunction(${q(`(async()=>{const v=await (${videoExpression});return Boolean(v&&v.identityKind==='platform-video-id'&&/^[0-9]{10,25}(?![\\s\\S])/.test(v.platformVideoId||'')&&v.platformVideoId!==${q(expectedPlatformVideoId)});})()`)},{timeout:10000});`;
     }
-    const body = this.#prefix() + own + action
-      + `await assertSafety();const current=await page.evaluate(${q(videoExpression)});if(!current||current.media.muted!==true||current.media.paused!==true${input.action === 'next' ? `||current.identityKind!=='platform-video-id'||!/^[0-9]{10,25}(?![\\s\\S])/.test(current.platformVideoId||'')||current.platformVideoId===${q(expectedPlatformVideoId)}` : ''})throw Error('BINDINGS_REQUIRED');await assertBrowseAccount();const returnTabs=(await browser.listTabs()).filter(t=>isBrowseFeedUrl(t.url));if(returnTabs.length!==1)throw Error('BINDINGS_REQUIRED');await browser.switchTab(returnTabs[0].targetId);await assertSafety();await page.waitForFunction(${q(videoReady)},{timeout:15000});const finalCurrent=await page.evaluate(${q(videoExpression)});if(!finalCurrent||finalCurrent.id!==current.id||finalCurrent.platformVideoId!==current.platformVideoId||finalCurrent.media.muted!==true||finalCurrent.media.paused!==true)throw Error('BINDINGS_REQUIRED');const result={ok:true,accountId:${q(context.accountId)},current:finalCurrent};`;
+    const body = this.#prefix() + `const markBrowsePhase=phase=>{if(typeof __dfyPhase==='function')__dfyPhase(phase);};` + own + action
+      + `await assertSafety();markBrowsePhase('browse-video-read');const current=await page.evaluate(${q(videoExpression)});if(!current||current.media.muted!==true||current.media.paused!==true${input.action === 'next' ? `||current.identityKind!=='platform-video-id'||!/^[0-9]{10,25}(?![\\s\\S])/.test(current.platformVideoId||'')||current.platformVideoId===${q(expectedPlatformVideoId)}` : ''})throw Error('BINDINGS_REQUIRED');await assertBrowseAccount(true);markBrowsePhase('browse-return-feed');const returnTabs=(await browser.listTabs()).filter(t=>isBrowseFeedUrl(t.url));if(returnTabs.length!==1)throw Error('BINDINGS_REQUIRED');await browser.switchTab(returnTabs[0].targetId);await assertSafety();markBrowsePhase('browse-return-video-wait');await page.waitForFunction(${q(videoReady)},{timeout:15000});markBrowsePhase('browse-return-video-read');const finalCurrent=await page.evaluate(${q(videoExpression)});if(!finalCurrent||finalCurrent.id!==current.id||finalCurrent.platformVideoId!==current.platformVideoId||finalCurrent.media.muted!==true||finalCurrent.media.paused!==true)throw Error('BINDINGS_REQUIRED');markBrowsePhase('browse-receipt');const result={ok:true,accountId:${q(context.accountId)},current:finalCurrent};`;
     try {
       const result = await this.runtime.run(body, context);
       const current = result?.current;
