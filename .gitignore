@@ -1,0 +1,75 @@
+# 依赖
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# 你自己的配置和数据（千万别提交）
+config.json
+role.md
+data/
+memory/user.md
+memory/timeline.md
+memory/facts.json
+memory/memory-overlay.json
+memory/.memory-write.lock/
+memory/*.tmp
+*.log
+
+# 截图输出
+shots/
+*.png.tmp
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 备份
+*.bak
+*.bak-*
+*.old
+*~
+
+# 视频和音频素材（太大 ✗ 不进仓库 ✗ 放 B站/网盘）
+assets/video/
+*.mp4
+*.wav
+*.mov
+*.mkv
+
+# Repository publication boundaries
+.env
+.env.*
+*.private.*
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key
+*.p12
+*.pid
+*.lock
+*.tmp
+__pycache__/
+*.pyc
+.build/
+.cache/
+profiles/
+profile/
+preview-private/
+work/
+logs/
+reports/
+shots/
+credentials.json
+credential.json
+login.json
+# Personal memory is local; only checked-in examples are distributable.
+memory/*
+!memory/user.example.md
+!memory/timeline.example.md
+# Rebuild native helpers locally from the licensed sources.
+vendor/control-plugins/anionex-helper-scalar/bin/

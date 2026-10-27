@@ -1,0 +1,21 @@
+{
+  "upstreamRepository": "https://github.com/c1overzz/dsh-bili-scroll",
+  "upstreamCommit": "5be5f6d57c47c7e79ad9bc4ce39457b68a160dfa",
+  "upstreamRelativePath": "vendor/bilibili-mcp/mcp_server.py",
+  "upstreamSHA256": "d44073aef2961b8fb1556024585b55a7ee0cf1e1b0f912ee32119ce8b01963b4",
+  "forkSHA256": "764af555173d1ff96e7b75b07a51bfda2027d7ff9cf0d3931dbcf1bd7f0a808d",
+  "forkRevision": "anonymous-readonly-r1",
+  "upstreamUnchanged": true,
+  "sdkVersion": "bilibili-api-python==17.4.2",
+  "sdkNativeDefault": "Video(..., credential=None) assigns Credential()",
+  "credentialsOrPermissionsBypassed": false,
+  "fixedTools": [
+    "bili_comments",
+    "bili_cover",
+    "bili_danmaku",
+    "bili_frames",
+    "bili_search",
+    "bili_subtitle",
+    "bili_video_info"
+  ]
+}

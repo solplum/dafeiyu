@@ -1,0 +1,49 @@
+{
+  "name": "dsh-dafeiyu",
+  "version": "1.0.0",
+  "description": "大肥鱼 DSH Cordis 适配层：记忆、真机工具与可选 QQ 网关",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./memory": "./src/memory-bridge.js",
+    "./tools": "./src/phone-tools.js",
+    "./memes": "./src/meme-manager.js",
+    "./voice": "./src/voice-processor.js",
+    "./gateway": "./src/qq-gateway.js",
+    "./client": "./src/client.js"
+  },
+  "files": [
+    "src",
+    "native",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "dafeiyu",
+    "companion"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": []
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/full-lifecycle.test.mjs"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  },
+  "optionalDependencies": {
+    "ws": "^8.18.0"
+  }
+}

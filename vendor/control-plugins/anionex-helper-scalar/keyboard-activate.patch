@@ -1,0 +1,62 @@
+--- upstream/native/macos/Sources/Helper/main.swift
++++ managed/Sources/Helper/main.swift
+@@ -741,20 +741,29 @@
+     return AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, text as CFTypeRef) == .success
+ }
+ 
++private func keyboardTextChunks(_ text: String) -> [String] {
++    text.unicodeScalars.map { String($0) }
++}
++
+ private func typeTextWithKeyboard(_ text: String, app: NSRunningApplication) throws {
+     let source = try targetedEventSource()
+-    guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+-          let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+-        throw fail("COMPUTER_ACTION_BLOCKED", "CoreGraphics could not create Unicode keyboard events")
+-    }
+-    let units = Array(text.utf16)
+-    units.withUnsafeBufferPointer { buffer in
+-        down.keyboardSetUnicodeString(stringLength: units.count, unicodeString: buffer.baseAddress!)
+-        up.keyboardSetUnicodeString(stringLength: units.count, unicodeString: buffer.baseAddress!)
+-    }
+-    down.postToPid(app.processIdentifier)
+-    usleep(5_000)
+-    up.postToPid(app.processIdentifier)
++    for chunk in keyboardTextChunks(text) {
++        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
++              let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
++            throw fail("COMPUTER_ACTION_BLOCKED", "CoreGraphics could not create Unicode keyboard events")
++        }
++        down.flags = []
++        up.flags = []
++        let units = Array(chunk.utf16)
++        units.withUnsafeBufferPointer { buffer in
++            down.keyboardSetUnicodeString(stringLength: units.count, unicodeString: buffer.baseAddress!)
++            up.keyboardSetUnicodeString(stringLength: units.count, unicodeString: buffer.baseAddress!)
++        }
++        down.postToPid(app.processIdentifier)
++        usleep(5_000)
++        up.postToPid(app.processIdentifier)
++        usleep(15_000)
++    }
+ }
+ 
+ private func targetRecord(_ request: [String: Any], snapshot: ObservationSnapshot) throws -> ElementRecord? {
+@@ -965,7 +974,7 @@
+         return actionResult(channel: "accessibility", activation: "not-requested", pointerInput: false)
+     case "type-text":
+         let text = try string(action["text"], "action.text")
+-        if setSelectedText(text, app: app) {
++        if keyboardPolicy != "activate", setSelectedText(text, app: app) {
+             return actionResult(channel: "accessibility", activation: "not-requested", pointerInput: false)
+         }
+         let current = try inputContext(
+@@ -979,7 +988,7 @@
+             actionKind: kind,
+             timeoutMs: actionTimeoutMs,
+         )
+-        if current.activation == "activated", setSelectedText(text, app: app) {
++        if keyboardPolicy != "activate", current.activation == "activated", setSelectedText(text, app: app) {
+             return actionResult(channel: "accessibility", activation: current.activation, pointerInput: false)
+         }
+         try typeTextWithKeyboard(text, app: app)

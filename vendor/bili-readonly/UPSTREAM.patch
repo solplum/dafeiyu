@@ -1,0 +1,83 @@
+--- upstream/mcp_server.py
++++ bili-readonly/mcp_server.py
+@@ -45,7 +45,13 @@
+ #    · 不给这个变量 ⇒ **全放**（手工跑、或老配置，行为一点不变 ✓）
+ #    · 给了 ⇒ 只注册名单里的；不在名单里的工具**连名字都不会出现在 list_tools 里**，
+ #      模型那边等于根本不存在 —— 这才是真的闸门（光靠提示词说"别用"不算）✓
+-_ALLOWED = {t.strip() for t in os.environ.get("BILI_MCP_TOOLS", "").split(",") if t.strip()}
++# Managed fork: the process is read-only even if launched without environment
++# configuration. A different requested list fails closed, never broadens access.
++_ALLOWED = {"bili_search", "bili_subtitle", "bili_comments", "bili_video_info",
++            "bili_cover", "bili_frames", "bili_danmaku"}
++_REQUESTED_TOOLS = {t.strip() for t in os.environ.get("BILI_MCP_TOOLS", "").split(",") if t.strip()}
++if _REQUESTED_TOOLS and _REQUESTED_TOOLS != _ALLOWED:
++    raise RuntimeError("只读B站服务必须使用固定七项工具名单")
+ 
+ 
+ def tool():
+@@ -69,39 +75,37 @@
+ 
+ 
+ def load_credential() -> Credential:
+-    """从文件加载凭证"""
+-    if not CRED_FILE.exists():
++    """Only an absent file means anonymous; an invalid saved credential fails closed."""
++    if not os.path.lexists(CRED_FILE):
+         return None
+-    try:
+-        with open(CRED_FILE, encoding="utf-8") as f:
+-            data = json.load(f)
+-    except (OSError, ValueError) as e:
+-        # ⚠️ 文件写坏一次（上一次写被打断）会让**所有**工具一起 JSONDecodeError：
+-        #    这里退化成「没登录」，重新扫一次码就能恢复。（2026-10-16 审查修）
+-        print(f"[bili-mcp] 凭证读不了（{type(e).__name__}: {e}）：{CRED_FILE}", file=sys.stderr)
+-        return None
+-    if not isinstance(data, dict):
+-        return None
++    if CRED_FILE.is_symlink() or not CRED_FILE.is_file() or CRED_FILE.stat().st_size > 65536:
++        raise RuntimeError("保存的B站凭据无效；没有降级为匿名读取")
++    try:
++        with CRED_FILE.open(encoding="utf-8") as handle:
++            data = json.load(handle)
++    except (OSError, ValueError):
++        raise RuntimeError("无法读取保存的B站凭据；没有降级为匿名读取") from None
++    if not isinstance(data, dict) or any(
++        not isinstance(data.get(key), str) or not data[key].strip()
++        for key in ("sessdata", "bili_jct", "dedeuserid")
++    ) or not data["dedeuserid"].isdigit() or (
++        data.get("buvid3") is not None and not isinstance(data["buvid3"], str)
++    ):
++        raise RuntimeError("保存的B站凭据不完整；没有降级为匿名读取")
+     return Credential(
+-        sessdata=data.get("sessdata", ""),
+-        bili_jct=data.get("bili_jct", ""),
+-        buvid3=data.get("buvid3") or "",
+-        dedeuserid=data.get("dedeuserid", ""),
++        sessdata=data["sessdata"], bili_jct=data["bili_jct"],
++        buvid3=data.get("buvid3") or "", dedeuserid=data["dedeuserid"],
+     )
+ 
+-
+ # ========== 登录会话（进程级缓存） ==========
+ 
+ _login_session: QrCodeLogin | None = None
+ 
+ 
+ def get_cred() -> Credential:
+-    """获取凭证，未登录时引导用户调用 bili_login"""
++    """Match SDK Video's default Credential() for public reads without an account."""
+     cred = load_credential()
+-    if not cred:
+-        raise Exception("未登录B站！请先调用 bili_login 工具获取登录二维码，让用户扫码登录。")
+-    return cred
+-
++    return Credential() if cred is None else cred
+ 
+ # ========== Tool: 扫码登录（生成二维码） ==========
+ 
+@@ -1658,4 +1662,5 @@
+ # ========== 启动 ==========
+ 
+ if __name__ == "__main__":
++    get_cred()  # Reject an existing damaged credential before serving any tools.
+     mcp.run(transport="stdio")

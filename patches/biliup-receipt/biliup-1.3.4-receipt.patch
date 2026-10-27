@@ -1,0 +1,475 @@
+--- a/crates/biliup-cli/src/cli.rs
++++ b/crates/biliup-cli/src/cli.rs
+@@ -60,6 +60,11 @@
+         /// Sets a custom config file
+         #[arg(short, long, value_name = "FILE")]
+         config: Option<PathBuf>,
++
++        /// Write the exact successful submission receipt to a new private absolute path.
++        /// The owner runner supplies this path; never expose it as a model parameter.
++        #[arg(long, value_name = "ABSOLUTE_FILE", conflicts_with = "config")]
++        receipt_file: Option<PathBuf>,
+ 
+         /// 选择上传线路
+         #[arg(short, long, value_enum)]
+@@ -416,4 +421,41 @@
+ 
+         assert_eq!(cli.user_cookie, Path::new("/tmp/private-account.json"));
+     }
+-}
++
++    #[test]
++    fn single_upload_accepts_an_explicit_owner_receipt_path_only() {
++        let cli = Cli::try_parse_from([
++            "biliup",
++            "upload",
++            "--receipt-file",
++            "/private/job/receipt.json",
++            "/private/job/video.mp4",
++        ])
++        .unwrap();
++        assert!(
++            matches!(cli.command, Commands::Upload { receipt_file: Some(ref file), .. }
++            if file == Path::new("/private/job/receipt.json"))
++        );
++        assert!(
++            Cli::try_parse_from([
++                "biliup",
++                "upload",
++                "--receipt-file",
++                "/private/job/receipt.json",
++                "--config",
++                "multiple.toml",
++            ])
++            .is_err()
++        );
++        assert!(
++            Cli::try_parse_from([
++                "biliup",
++                "show",
++                "--receipt-file",
++                "/private/job/receipt.json",
++                "BV1xx411c7mD",
++            ])
++            .is_err()
++        );
++    }
++}
+--- a/crates/biliup-cli/src/entry.rs
++++ b/crates/biliup-cli/src/entry.rs
+@@ -153,6 +153,7 @@
+             limit,
+             studio,
+             submit,
++            receipt_file,
+         } => {
+             let video_path: Vec<_> = video_path.into_iter().map(expand_path).collect();
+             upload_by_command(
+@@ -163,6 +164,7 @@
+                 limit,
+                 submit.unwrap_or(SubmitOption::App),
+                 proxy,
++                receipt_file,
+             )
+             .await?
+         }
+@@ -170,8 +172,17 @@
+             video_path: _,
+             config: Some(config),
+             submit,
++            receipt_file,
+             ..
+-        } => upload_by_config(expand_path(config), user_cookie, submit, proxy).await?,
++        } => {
++            if receipt_file.is_some() {
++                return Err(AppError::Custom(
++                    "--receipt-file cannot be used with multi-job --config uploads".into(),
++                )
++                .into());
++            }
++            upload_by_config(expand_path(config), user_cookie, submit, proxy).await?
++        }
+         Commands::Append {
+             video_path,
+             vid,
+--- a/crates/biliup-cli/src/uploader.rs
++++ b/crates/biliup-cli/src/uploader.rs
+@@ -1,4 +1,5 @@
+ use crate::UploadLine;
++use crate::receipt::ReceiptFile;
+ use crate::server::errors::{AppError, AppResult};
+ use crate::upload_lock::UploadLock;
+ use biliup::client::StatelessClient;
+@@ -172,6 +173,7 @@
+     limit: usize,
+     submit: SubmitOption,
+     proxy: Option<&str>,
++    receipt_file: Option<PathBuf>,
+ ) -> AppResult<()> {
+     if video_path.is_empty() {
+         return Err(AppError::Custom(
+@@ -179,6 +181,15 @@
+         )
+         .into());
+     }
++    // Validate and stage the private destination before even loading credentials.
++    // Persistent dispatch/account ownership is provided by DSH's PublishJournal,
++    // not by a second task journal inside this CLI.
++    let receipt = receipt_file
++        .map(ReceiptFile::prepare)
++        .transpose()
++        .change_context_lazy(|| {
++            AppError::Custom("Receipt destination unavailable; upload was not started".into())
++        })?;
+     let bili = login_by_cookies(user_cookie, proxy).await?;
+     if studio.title.is_empty() {
+         studio.title = video_path[0]
+@@ -190,7 +201,7 @@
+     cover_up(&mut studio, &bili).await?;
+     studio.videos = upload(&video_path, &bili, line, limit).await?;
+ 
+-    match submit {
++    let response = match submit {
+         SubmitOption::BCutAndroid => bili
+             .submit_by_bcut_android(&studio, proxy)
+             .await
+@@ -204,6 +215,20 @@
+             .await
+             .change_context_lazy(|| AppError::Unknown)?,
+     };
++
++    if let Some(receipt) = receipt {
++        response
++            .data
++            .as_ref()
++            .and_then(|data| Some((data.get("aid")?.as_u64()?, data.get("bvid")?.as_str()?)))
++            .ok_or_else(|| std::io::Error::other("Missing exact submission identifiers"))
++            .and_then(|(aid, bvid)| receipt.commit(response.code, aid, bvid))
++            .change_context_lazy(|| {
++                AppError::Custom(
++                    "SUBMISSION_RESULT_UNKNOWN: platform accepted the submission but its private receipt could not be saved; do not automatically submit again".into(),
++                )
++            })?;
++    }
+ 
+     Ok(())
+ }
+--- a/crates/biliup-cli/src/lib.rs
++++ b/crates/biliup-cli/src/lib.rs
+@@ -2,6 +2,7 @@
+ pub mod downloader;
+ pub mod entry;
+ pub mod node_cli;
++pub mod receipt;
+ pub mod season_cli;
+ pub mod server;
+ pub mod tools;
+--- /dev/null
++++ b/crates/biliup-cli/src/receipt.rs
+@@ -0,0 +1,306 @@
++//! Optional machine-readable receipt for an owner-managed single upload.
++//!
++//! This is an output sink, not a task journal or permission grant. DSH must claim
++//! PublishJournal.claimFile(id), persist dispatching and hold accountLock before
++//! launching this command. Absence of this receipt never permits a second submit.
++use std::fs::{self, File, OpenOptions};
++use std::io::{self, Write};
++use std::path::{Component, Path, PathBuf};
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::time::{SystemTime, UNIX_EPOCH};
++
++#[cfg(unix)]
++use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
++
++static NEXT: AtomicU64 = AtomicU64::new(0);
++
++pub struct ReceiptFile {
++    destination: PathBuf,
++    temporary: PathBuf,
++    parent: PathBuf,
++    directory: File,
++    file: File,
++}
++
++impl ReceiptFile {
++    /// Caller must supply a fresh absolute destination in an existing private
++    /// canonical directory. No directories or credentials are created here.
++    pub fn prepare(path: impl AsRef<Path>) -> io::Result<Self> {
++        let path = path.as_ref();
++        if !path.is_absolute()
++            || path
++                .components()
++                .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
++            || path.file_name().is_none()
++        {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "Receipt path must be absolute and canonical",
++            ));
++        }
++        let parent = path
++            .parent()
++            .ok_or_else(|| io::Error::other("Receipt has no parent"))?;
++        if parent.canonicalize()? != parent {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "Receipt directory cannot traverse links",
++            ));
++        }
++        let directory = File::open(parent)?;
++        let metadata = directory.metadata()?;
++        if !metadata.is_dir() {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "Receipt parent is not a directory",
++            ));
++        }
++        #[cfg(unix)]
++        if metadata.permissions().mode() & 0o077 != 0 {
++            return Err(io::Error::new(
++                io::ErrorKind::PermissionDenied,
++                "Receipt directory must be private",
++            ));
++        }
++        ensure_absent(path)?;
++        let stamp = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .map_err(|_| io::Error::other("System clock unavailable"))?
++            .as_nanos();
++        let temporary = parent.join(format!(
++            ".biliup-receipt-{}-{stamp}-{}.tmp",
++            std::process::id(),
++            NEXT.fetch_add(1, Ordering::Relaxed)
++        ));
++        let mut options = OpenOptions::new();
++        options.write(true).create_new(true);
++        #[cfg(unix)]
++        options.mode(0o600);
++        let file = options.open(&temporary)?;
++        let output = Self {
++            destination: path.to_owned(),
++            temporary,
++            parent: parent.to_owned(),
++            directory,
++            file,
++        };
++        #[cfg(unix)]
++        output
++            .file
++            .set_permissions(fs::Permissions::from_mode(0o600))?;
++        output.file.sync_all()?;
++        output.directory.sync_all()?;
++        Ok(output)
++    }
++
++    /// Only the exact code/aid/bvid fields from the successful platform response
++    /// may enter the receipt. All failures occur after acceptance and must be
++    /// reported to the runner as unknown, without replaying a submission.
++    pub fn commit(mut self, code: i32, aid: u64, bvid: &str) -> io::Result<()> {
++        if code != 0
++            || aid == 0
++            || aid > 9_007_199_254_740_991
++            || bvid.len() != 12
++            || !bvid.starts_with("BV")
++            || !bvid.as_bytes()[2..].iter().all(u8::is_ascii_alphanumeric)
++        {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidData,
++                "Invalid exact submission response",
++            ));
++        }
++        self.check_parent()?;
++        ensure_absent(&self.destination)?;
++        // bvid is restricted to ASCII alphanumerics, so these are the only
++        // possible bytes. No remote messages, titles or secret data are copied.
++        self.file.write_all(
++            format!("{{\"code\":0,\"data\":{{\"aid\":{aid},\"bvid\":\"{bvid}\"}}}}\n").as_bytes(),
++        )?;
++        self.file.sync_all()?;
++        self.check_parent()?;
++        // hard_link is an atomic no-replace publication in the same directory.
++        // rename/persist would replace another completed receipt on Unix.
++        fs::hard_link(&self.temporary, &self.destination)?;
++        self.directory.sync_all()?;
++        fs::remove_file(&self.temporary)?;
++        self.directory.sync_all()?;
++        Ok(())
++    }
++
++    fn check_parent(&self) -> io::Result<()> {
++        if self.parent.canonicalize()? != self.parent {
++            return Err(io::Error::other("Receipt directory changed"));
++        }
++        let current = fs::metadata(&self.parent)?;
++        let opened = self.directory.metadata()?;
++        #[cfg(unix)]
++        if current.dev() != opened.dev()
++            || current.ino() != opened.ino()
++            || current.permissions().mode() & 0o077 != 0
++        {
++            return Err(io::Error::other("Receipt directory changed"));
++        }
++        if !current.is_dir() || !opened.is_dir() {
++            return Err(io::Error::other("Receipt directory changed"));
++        }
++        Ok(())
++    }
++}
++
++fn ensure_absent(path: &Path) -> io::Result<()> {
++    match fs::symlink_metadata(path) {
++        Ok(_) => Err(io::Error::new(
++            io::ErrorKind::AlreadyExists,
++            "Receipt already exists; never resubmit",
++        )),
++        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
++        Err(error) => Err(error),
++    }
++}
++
++impl Drop for ReceiptFile {
++    fn drop(&mut self) {
++        // Removes only this invocation's private temporary file, never a final
++        // receipt or the runner's journal/claim/account lock.
++        let _ = fs::remove_file(&self.temporary);
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    struct PrivateDir(PathBuf);
++    impl PrivateDir {
++        fn new() -> Self {
++            let root = std::env::temp_dir().canonicalize().unwrap();
++            let path = root.join(format!(
++                "biliup-receipt-test-{}-{}",
++                std::process::id(),
++                NEXT.fetch_add(1, Ordering::Relaxed)
++            ));
++            fs::create_dir(&path).unwrap();
++            #[cfg(unix)]
++            fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
++            Self(path)
++        }
++        fn receipt(&self) -> PathBuf {
++            self.0.join("receipt.json")
++        }
++    }
++    impl Drop for PrivateDir {
++        fn drop(&mut self) {
++            let _ = fs::remove_dir_all(&self.0);
++        }
++    }
++
++    #[test]
++    fn writes_only_exact_validated_identifiers_and_keeps_private_permissions() {
++        let dir = PrivateDir::new();
++        ReceiptFile::prepare(dir.receipt())
++            .unwrap()
++            .commit(0, 12345, "BV1xx411c7mD")
++            .unwrap();
++        assert_eq!(
++            fs::read_to_string(dir.receipt()).unwrap(),
++            "{\"code\":0,\"data\":{\"aid\":12345,\"bvid\":\"BV1xx411c7mD\"}}\n"
++        );
++        #[cfg(unix)]
++        assert_eq!(
++            fs::metadata(dir.receipt()).unwrap().permissions().mode() & 0o777,
++            0o600
++        );
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 1);
++    }
++
++    #[test]
++    fn existing_receipt_is_never_overwritten_or_used_for_another_submission() {
++        let dir = PrivateDir::new();
++        fs::write(dir.receipt(), b"original receipt").unwrap();
++        assert!(
++            matches!(ReceiptFile::prepare(dir.receipt()), Err(error) if error.kind() == io::ErrorKind::AlreadyExists)
++        );
++        assert_eq!(fs::read(dir.receipt()).unwrap(), b"original receipt");
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 1);
++    }
++
++    #[test]
++    fn a_racing_final_receipt_is_preserved_and_failure_cleans_only_the_temporary() {
++        let dir = PrivateDir::new();
++        let pending = ReceiptFile::prepare(dir.receipt()).unwrap();
++        fs::write(dir.receipt(), b"another completed result").unwrap();
++        assert!(
++            matches!(pending.commit(0, 123, "BV1xx411c7mD"), Err(error) if error.kind() == io::ErrorKind::AlreadyExists)
++        );
++        assert_eq!(
++            fs::read(dir.receipt()).unwrap(),
++            b"another completed result"
++        );
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 1);
++    }
++
++    #[test]
++    fn invalid_platform_responses_never_produce_a_receipt() {
++        let dir = PrivateDir::new();
++        for (code, aid, bvid) in [
++            (1, 123, "BV1xx411c7mD"),
++            (0, 0, "BV1xx411c7mD"),
++            (0, u64::MAX, "BV1xx411c7mD"),
++            (0, 123, "BV1xx411c7m"),
++            (0, 123, "av1xx411c7mD"),
++            (0, 123, "BV1xx411c7m/"),
++            (0, 123, "BV1xx411c7m\n"),
++            (0, 123, "BV1xx411c7m🦀"),
++        ] {
++            let pending = ReceiptFile::prepare(dir.receipt()).unwrap();
++            assert!(
++                matches!(pending.commit(code, aid, bvid), Err(error) if error.kind() == io::ErrorKind::InvalidData)
++            );
++            assert!(!dir.receipt().exists());
++            assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
++        }
++    }
++
++    #[test]
++    fn abandoning_preparation_creates_no_receipt_or_claim() {
++        let dir = PrivateDir::new();
++        drop(ReceiptFile::prepare(dir.receipt()).unwrap());
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
++    }
++
++    #[test]
++    fn relative_and_nonexistent_directories_are_rejected_without_creation() {
++        assert!(ReceiptFile::prepare("relative-receipt.json").is_err());
++        let dir = PrivateDir::new();
++        assert!(ReceiptFile::prepare(dir.0.join("missing/receipt.json")).is_err());
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn linked_files_and_parent_directories_are_rejected() {
++        use std::os::unix::fs::symlink;
++        let dir = PrivateDir::new();
++        let secret = dir.0.join("existing.json");
++        fs::write(&secret, b"private existing").unwrap();
++        symlink(&secret, dir.receipt()).unwrap();
++        assert!(ReceiptFile::prepare(dir.receipt()).is_err());
++        let alias = dir.0.join("alias");
++        symlink(&dir.0, &alias).unwrap();
++        assert!(ReceiptFile::prepare(alias.join("another.json")).is_err());
++        assert_eq!(fs::read(secret).unwrap(), b"private existing");
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn public_or_changed_directory_permissions_fail_closed() {
++        let dir = PrivateDir::new();
++        fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o755)).unwrap();
++        assert!(ReceiptFile::prepare(dir.receipt()).is_err());
++        fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o700)).unwrap();
++        let pending = ReceiptFile::prepare(dir.receipt()).unwrap();
++        fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o755)).unwrap();
++        assert!(pending.commit(0, 123, "BV1xx411c7mD").is_err());
++        assert!(!dir.receipt().exists());
++        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
++    }
++}
