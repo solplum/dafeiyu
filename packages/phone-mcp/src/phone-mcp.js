@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // phone-mcp · 安卓手机/模拟器控制 MCP 服务器（stdio）
 //
 // 用法：
@@ -7,10 +8,14 @@
 //
 // 环境变量（都可选）：
 //   PHONE_ADB         adb 可执行文件路径（默认自动探测 PATH / 常见安装位置）
-//   PHONE_SERIAL      设备序列号（默认选第一个已连接设备）
+//   PHONE_SERIAL      绑定设备序列号（未选时仅允许自动绑定唯一在线设备）
 //   PHONE_SHOT_DIR    截图输出目录（默认 系统临时目录/phone-mcp-shots）
 //   PHONE_MACRO_FILE  宏存储文件（默认 用户目录/.phone-mcp/macros.json）
-//   PHONE_FFMPEG      ffmpeg 路径（默认自动探测，仅 video_frames 需要）
+//   PHONE_FFMPEG      ffmpeg 路径（默认 PATH）
+//   PHONE_ALLOWED_TOOLS / PHONE_ALLOWED_KEYS JSON 数组或逗号列表；省略时不缩小工具范围
+//   PHONE_MAX_LISTEN_SECONDS 录音上限 1..30；配置时同时限制录屏时长
+//   PHONE_STT_CONFIG  显式 STT 对象 JSON；或 PHONE_STT_CONFIG_FILE 指定含 stt 的 JSON
+//   PHONE_QQ_SEND_PROFILE 显式 QQ 身份/控件配置文件；未配置禁止 GUI 发送
 //
 // 设计要点：
 // - 只依赖本机 adb；手机侧无需安装任何 APP。
@@ -21,10 +26,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as ncm from './ncm.js';
+import { DeviceBinding } from './phone-device.js';
+import { validateQqSendProfile, verifiedQqSession, qqContact, qqSendControls } from './phone-identity.js';
+import { transcribeCapturedAudio, audioStatusText } from './phone-audio.js';
+import { probeCaptureDuration, captureDurationText } from './shared/media-probe.js';
+import { normalizeMemeDescription } from './shared/meme-description.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -48,33 +59,86 @@ function findAdb() {
 }
 const ADB = findAdb();
 const SHOT_DIR = process.env.PHONE_SHOT_DIR || path.join(os.tmpdir(), 'phone-mcp-shots');
-// 默认设备：留空 = 自动选第一个已连接设备（可用 PHONE_SERIAL 固定到某一台）
-let SERIAL = process.env.PHONE_SERIAL || '';
+// 选中后保持绑定；失联不回退到其他设备。
+const CONFIGURED_SERIAL = process.env.PHONE_SERIAL || '';
+const deviceBinding = new DeviceBinding(CONFIGURED_SERIAL);
 
-async function adb(args, { timeout = 30000, serial = true } = {}) {
-  const full = serial && SERIAL ? ['-s', SERIAL, ...args] : args;
+const log = (...args) => console.error(...args);
+
+function resolveImage(input) {
+  if (!input || typeof input !== 'string') return { error: '输入不能为空' };
+  const s = input.trim();
+  if (/^https?:\/\//i.test(s)) {
+    return { file: s };
+  }
+  const candidates = [
+    s,
+    path.join(SHOT_DIR, s),
+    path.join(process.cwd(), s),
+    path.resolve(s),
+  ];
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && fs.statSync(c).isFile()) {
+        return { file: path.resolve(c) };
+      }
+    } catch {}
+  }
+  return { error: `找不到文件「${s}」，请确认文件在截图目录或当前目录` };
+}
+
+const SNOWLUMA_HTTP = process.env.SNOWLUMA_HTTP || 'http://127.0.0.1:3000';
+
+function loadSnowlumaToken() {
+  if (process.env.SNOWLUMA_TOKEN) return process.env.SNOWLUMA_TOKEN;
+  const configPaths = [
+    path.join(process.cwd(), 'config.json'),
+    path.join(process.cwd(), 'packages/companion/config.json'),
+    path.join(os.homedir(), '.config/snowluma/config.json'),
+  ];
+  for (const cp of configPaths) {
+    try {
+      if (fs.existsSync(cp)) {
+        const cfg = JSON.parse(fs.readFileSync(cp, 'utf8'));
+        const token = cfg.snowluma?.accessToken || cfg.onebot?.accessToken || cfg.accessToken;
+        if (token) return token;
+      }
+    } catch {}
+  }
+  return '';
+}
+
+async function adb(args, { timeout = 30000, serial = true, signal = deviceBinding.signal() } = {}) {
+  const selected = deviceBinding.current();
+  const full = serial && selected ? ['-s', selected, ...args] : args;
   try {
     const { stdout, stderr } = await execFileAsync(ADB, full, {
-      timeout,
+      timeout, signal,
       maxBuffer: 8 * 1024 * 1024,
       windowsHide: true,
     });
     return { ok: true, out: String(stdout ?? ''), err: String(stderr ?? '') };
   } catch (e) {
-    return { ok: false, out: String(e?.stdout ?? ''), err: String(e?.stderr ?? e?.message ?? e) };
+    return { ok: false, out: String(e?.stdout ?? ''), err: String(e?.stderr || e?.message || e) };
   }
 }
 
 async function ensureDevice() {
-  if (SERIAL) return SERIAL;
-  const r = await adb(['devices'], { serial: false });
-  const lines = r.out.split(/\r?\n/).slice(1).filter((l) => l.trim());
-  const ready = lines.map((l) => l.split(/\s+/)).filter((p) => p[1] === 'device').map((p) => p[0]);
-  if (!ready.length) {
-    throw new Error('没有已连接的设备。先让手机开启「无线调试」，再用 phone_pair / phone_connect。');
+  deviceBinding.signal()?.throwIfAborted();
+  const selected = deviceBinding.current();
+  if (selected) {
+    const check = await adb(['get-state']);
+    if (check.ok && check.out.trim() === 'device') return selected;
+    throw new Error(`指定设备 ${selected} 不在线，已取消操作；不会切换到其他设备`);
   }
-  SERIAL = ready[0];
-  return SERIAL;
+  let r = await adb(['devices'], { serial: false });
+  if (!r.ok) throw new Error(`无法列出设备：${r.err || r.out}`);
+  const readyDevices = (output) => output.split(/\r?\n/).slice(1).filter((line) => line.trim())
+    .map((line) => line.split(/\s+/)).filter((parts) => parts[1] === 'device').map((parts) => parts[0]);
+  let ready = readyDevices(r.out);
+  if (!ready.length) throw new Error('没有已连接的设备。先让手机开启无线调试，再用 phone_pair / phone_connect。');
+  if (ready.length !== 1) throw new Error('存在多台在线设备，请先用 PHONE_SERIAL 或 phone_devices(use) 明确选择');
+  return deviceBinding.pin(ready[0]);
 }
 
 async function shell(cmd, timeout = 30000) {
@@ -84,10 +148,108 @@ async function shell(cmd, timeout = 30000) {
   return r.out;
 }
 
+const quoteShell = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
+
+async function inputPhoneText(content) {
+  if (typeof content !== 'string' || !content.length) throw new Error('输入文字不能为空');
+  if (/^[\x20-\x7e]*$/.test(content)) {
+    await shell(`input text ${quoteShell(content)}`);
+    return 'ADB 原生';
+  }
+  const methods = await shell('ime list -a');
+  if (!/com\.android\.adbkeyboard/i.test(methods)) throw new Error('中文输入需要安装 ADBKeyboard');
+  const ime = 'com.android.adbkeyboard/.AdbIME';
+  const previous = (await shell('settings get secure default_input_method')).trim();
+  const enabled = (await shell('settings get secure enabled_input_methods')).trim();
+  if (!previous || previous === 'null') throw new Error('无法读取当前输入法，已取消输入');
+  try {
+    await shell(`ime enable ${ime}`);
+    await shell(`settings put secure default_input_method ${ime}`);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await shell(`am broadcast -a ADB_INPUT_B64 --es msg ${quoteShell(Buffer.from(content).toString('base64'))}`);
+  } finally {
+    await shell(`settings put secure default_input_method ${quoteShell(previous)}`);
+    if (enabled && enabled !== 'null') await shell(`settings put secure enabled_input_methods ${quoteShell(enabled)}`);
+  }
+  return 'ADBKeyboard';
+}
+
+function uiNodes(xml) {
+  return [...String(xml).matchAll(/<node\b[^>]*>/g)].map(([tag]) => {
+    const attrs = {};
+    for (const [, name, value] of tag.matchAll(/([\w-]+)="([^"]*)"/g)) {
+      attrs[name] = value.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    }
+    const bounds = attrs.bounds?.match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
+    return { ...attrs, point: bounds ? { x: Math.round((+bounds[1] + +bounds[3]) / 2), y: Math.round((+bounds[2] + +bounds[4]) / 2) } : null };
+  });
+}
+
 const text = (s) => ({ content: [{ type: 'text', text: String(s) }] });
 const fail = (s) => ({ content: [{ type: 'text', text: String(s) }], isError: true });
 
 const server = new McpServer({ name: 'phone', version: '0.1.0' });
+
+function optionalAllowlist(name, known) {
+  const raw = process.env[name];
+  if (raw === undefined) return null;
+  let values;
+  try { values = raw.trim().startsWith('[') ? JSON.parse(raw) : raw.split(',').map((item) => item.trim()).filter(Boolean); }
+  catch { throw new Error(`${name} 必须为 JSON 数组或逗号分隔列表`); }
+  if (!Array.isArray(values) || !values.every((item) => typeof item === 'string' && known.has(item))) throw new Error(`${name} 含未知或无效名称`);
+  return new Set(values);
+}
+const KNOWN_TOOLS = new Set(['music_lyrics', 'ncm_now', 'ncm_room', 'ncm_control', 'ncm_room_control', 'ncm_play', 'ncm_comments', 'ncm_search', 'ncm_inbox', 'ncm_msg_users', 'ncm_room_say', 'phone_macro', 'phone_status', 'phone_pair', 'phone_connect', 'phone_devices', 'phone_screenshot', 'phone_dump', 'phone_tap', 'phone_tap_text', 'phone_text', 'phone_key', 'phone_swipe', 'phone_long_press', 'phone_steal_meme', 'phone_listen', 'phone_open_app', 'phone_qq_send', 'video_frames', 'phone_record_screen', 'qzone_post', 'qzone_my_posts', 'qzone_like', 'qzone_comment', 'qzone_user_posts', 'qzone_feeds', 'qzone_recent_like']);
+const allowedTools = optionalAllowlist('PHONE_ALLOWED_TOOLS', KNOWN_TOOLS);
+const allowedKeys = optionalAllowlist('PHONE_ALLOWED_KEYS', new Set(['back', 'home', 'enter', 'recent', 'volume_up', 'volume_down', 'power', 'delete', 'menu']));
+const configuredListenLimit = process.env.PHONE_MAX_LISTEN_SECONDS;
+if (configuredListenLimit !== undefined && !/^[1-9]\d*$/.test(configuredListenLimit)) throw new Error('PHONE_MAX_LISTEN_SECONDS 必须为正整数');
+const MAX_LISTEN_SECONDS = configuredListenLimit === undefined ? 30 : Number(configuredListenLimit);
+if (MAX_LISTEN_SECONDS > 30) throw new Error('PHONE_MAX_LISTEN_SECONDS 不得超过 30');
+function checkAllowedKey(key) {
+  if (allowedKeys && !allowedKeys.has(key)) throw new Error(`按键 ${key} 不在允许范围内`);
+}
+
+
+// ── 硬性限流：把"别太过分"写进代码（不靠她自觉）──────────────────────────
+// 写操作（点按/打字/滑动/按键/开应用/shell）每天上限、每分钟上限；
+// 截图/录屏也有上限，避免她一直盯着你的屏幕看。
+const RATE_LIMIT = {
+  write: { perMinute: 5, perDay: 40, hits: [] },
+  look:  { perMinute: 3, perDay: 80, hits: [] },
+};
+function rateCheck(kind) {
+  const rl = RATE_LIMIT[kind];
+  const now = Date.now();
+  rl.hits = rl.hits.filter((t) => now - t < 24 * 3600 * 1000);
+  const lastMin = rl.hits.filter((t) => now - t < 60000).length;
+  if (lastMin >= rl.perMinute) return `【限流】${kind} 类操作每分钟最多 ${rl.perMinute} 次，已拒绝。`;
+  if (rl.hits.length >= rl.perDay) return `【限流】${kind} 类操作每天最多 ${rl.perDay} 次，今天已用完，请明天再来。`;
+  rl.hits.push(now);
+  return null;
+}
+const WRITE_TOOLS = new Set(['phone_tap', 'phone_tap_text', 'phone_text', 'phone_swipe', 'phone_key', 'phone_open_app', 'phone_shell', 'phone_long_press', 'phone_steal_meme', 'phone_qq_send']);
+const LOOK_TOOLS = new Set(['phone_screenshot', 'phone_dump', 'phone_record_screen', 'phone_listen']);
+server.tool = new Proxy(server.tool.bind(server), {
+  apply(target, thisArg, args) {
+    const name = args[0];
+    if (allowedTools && !allowedTools.has(name)) return { remove() {} };
+    const kind = WRITE_TOOLS.has(name) ? 'write' : LOOK_TOOLS.has(name) ? 'look' : null;
+    const handler = args[args.length - 1];
+    args[args.length - 1] = async (...rest) => {
+      return deviceBinding.run(async () => {
+        const blocked = kind && rateCheck(kind);
+        if (blocked) return fail(blocked);
+        try {
+          rest[1]?.signal?.throwIfAborted();
+          return await handler(...rest);
+        } catch (error) { return fail(error.message); }
+      }, { exclusive: name.startsWith('phone_') && !['phone_devices', 'phone_status', 'phone_connect', 'phone_pair'].includes(name), signal: rest[1]?.signal });
+    };
+    return Reflect.apply(target, thisArg, args);
+  },
+});
+
 
 server.tool(
   'music_lyrics',
@@ -342,129 +504,40 @@ server.tool(
 );
 
 
-// ── ROOM_SAY_V3：快速版（聊天框已开就只打字+发送 ✗ ~8 秒） ──────────────────
-const ROOM_EMU = process.env.ROOM_EMU_SERIAL || 'emulator-5554';
-const EMU_SHOT_DIR = SHOT_DIR;
-const SELF_MUSIC_UID = process.env.PHONE_MUSIC_SELF_UID || '';
-
-async function emuAdb(args, timeout = 20000) {
-  try {
-    const { stdout, stderr } = await execFileAsync(ADB, ['-s', ROOM_EMU, ...args], {
-      timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
-    });
-    return { ok: true, out: String(stdout ?? ''), err: String(stderr ?? '') };
-  } catch (e) {
-    return { ok: false, out: String(e?.stdout ?? ''), err: String(e?.stderr ?? e?.message ?? e) };
-  }
-}
-const emuSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// ── ensureIme：确保 ADBKeyboard 是当前输入法（模拟器重启后会被重置 ✗ 这里自愈）──
-let imeChecked = 0;
-async function ensureIme(force = false) {
-  const now = Date.now();
-  if (!force && now - imeChecked < 60000) return true;   // 一分钟内不重复查
-  const IME = 'com.android.adbkeyboard/.AdbIME';
-  const cur = String((await adb(['shell', 'settings', 'get', 'secure', 'default_input_method'])).out || '').trim();
-  if (cur === IME) { imeChecked = now; return true; }
-  // 修：先启用 ✗ 再把列表和默认都设成它
-  await adb(['shell', 'ime', 'enable', IME]);
-  await adb(['shell', 'settings', 'put', 'secure', 'enabled_input_methods',
-    IME + ':com.android.inputmethod.pinyin/.InputService']);
-  await adb(['shell', 'settings', 'put', 'secure', 'default_input_method', IME]);
-  await emuSleep(600);
-  const after = String((await adb(['shell', 'settings', 'get', 'secure', 'default_input_method'])).out || '').trim();
-  log ? log('[ime] 输入法 ' + cur + ' → ' + after) : null;
-  imeChecked = Date.now();
-  return after === IME;
-}
-
-const COMPOSER_INPUT = ['75', '639'];
-const SEND_SPOTS = [['613', '627'], ['609', '623'], ['620', '623'], ['1219', '367']];
-const CHAT_ENTRY_SPOTS = [['411', '478'], ['347', '467'], ['325', '487'], ['313', '495']];
-
-// 键盘开着 = 聊天框开着（一次 dumpsys ✗ 约 0.4 秒）
-async function composerOpen() {
-  const r = await emuAdb(['shell', 'dumpsys', 'input_method']);
-  return String(r.out).includes('mInputShown=true');
-}
-
+// Room posting remains disabled until the actual recipient/session can be verified.
 server.tool(
   'ncm_room_say',
-  '在你们的一起听房间里说话 —— 用她自己的账号真发到房间聊天框里，主人手机上马上能看到。想陪他聊天、接歌词、吐槽切歌、说晚安时用它。注意：只有【他刚给你发过消息】时聊天框才打得开 ✓',
-  { text: z.string().describe('要说的话，一到两句，短一点更自然') },
-  async ({ text: say }) => {
-    const msg = String(say || '').trim();
-    if (!msg) return fail('要说的话不能为空。');
-    if (msg.length > 120) return fail('太长了，房间里说话短一点（120 字以内）。');
-    try {
-      // ① 确认网易云在前台（不在就启动）
-      const win = await emuAdb(['shell', 'dumpsys', 'window']);
-      const fg = (String(win.out).match(/mCurrentFocus=(\S+)/) || [])[1] || '';
-      if (!fg.includes('com.netease.cloudmusic')) {
-        await emuAdb(['shell', 'input', 'keyevent', '3']);
-        await emuSleep(1200);
-        const act = await emuAdb(['shell', 'cmd', 'package', 'resolve-activity', '--brief', 'com.netease.cloudmusic']);
-        const comp = String(act.out || '').trim().split(/\r?\n/).pop().trim();
-        if (comp && comp.includes('/')) await emuAdb(['shell', 'am', 'start', '-n', comp]);
-        await emuSleep(13000);
-      }
-      // ② 进播放页
-      await emuAdb(['shell', 'input', 'tap', '267', '653']);
-      await emuSleep(4500);
-
-      // ③ 依次试各个候选位置 ✗ 每次点完看看输入框有没有出现
-      let opened = false;
-      for (const spot of CHAT_ENTRY_SPOTS) {
-        await emuAdb(['shell', 'input', 'tap', spot[0], spot[1]]);
-        await emuSleep(2500);
-        // 点完试探一下：点输入框位置 ✗ 再截图看有没有键盘（键盘弹出会让屏幕变矮 ✓）
-        await emuAdb(['shell', 'input', 'tap', COMPOSER_INPUT[0], COMPOSER_INPUT[1]]);
-        await emuSleep(1200);
-        const kb = await emuAdb(['shell', 'dumpsys', 'input_method']);
-        if (String(kb.out).includes('mInputShown=true')) { opened = true; break; }
-      }
-      if (!opened) {
-        // 打不开就诚实告诉她 ✗ 别假装成功
-        return fail('房间聊天框打不开（他可能还没给你发新消息 ✗ 聊天框只在有未读时出现）。' +
-          '这次就别在房间里发了 ✗ 直接用 QQ 回他 ✓');
-      }
-
-      // ④ 打中文
-      await emuAdb(['shell', 'am', 'broadcast', '-a', 'ADB_INPUT_TEXT', '--es', 'msg', msg]);
-      await emuSleep(2200);
-
-      // ⑤ 点发送（键盘弹出时和收起时位置不同 ✗ 两个都点）
-      await emuAdb(['shell', 'input', 'tap', '1219', '367']);
-      await emuSleep(1500);
-      await emuAdb(['shell', 'input', 'tap', '613', '627']);
-      await emuSleep(2500);
-
-      // ⑥ 截图自检
-      try { await emuAdb(['shell', 'mkdir', '-p', '/sdcard/_shots']); } catch {}
-      await emuAdb(['shell', 'screencap', '-p', '/sdcard/_roomsay.png']);
-      try { await emuAdb(['pull', '/sdcard/_roomsay.png', EMU_SHOT_DIR + '\\roomsay.png']); } catch {}
-      return text('已经在房间里说了：「' + msg + '」\n（截图: ' + EMU_SHOT_DIR + '\\roomsay.png ✗ 可以看图确认有没有真发出去 ✓）');
-    } catch (e) {
-      return fail('发到房间失败：' + (e && e.message ? e.message : e));
-    }
-  }
+  '网易云房间发言暂不可用：尚未接入可靠的会话定位与发送确认。',
+  { text: z.string().describe('原计划发送的文字') },
+  async () => fail('网易云房间发言尚未接入可靠的会话定位与发送确认，已取消自动发送。请在网易云客户端核对房间后手动发送。'),
 );
+
+const macroActionSchema = z.object({
+  type: z.enum(['tap', 'swipe', 'longpress', 'key', 'sleep', 'text']),
+  x: z.number().finite().optional(), y: z.number().finite().optional(),
+  x2: z.number().finite().optional(), y2: z.number().finite().optional(),
+  ms: z.number().finite().optional(), key: z.enum(['back', 'home', 'enter', 'recent', 'volume_up', 'volume_down', 'power', 'delete', 'menu']).optional(), text: z.string().min(1).optional(),
+}).superRefine((action, ctx) => {
+  const required = action.type === 'swipe' ? ['x', 'y', 'x2', 'y2'] : ['tap', 'longpress'].includes(action.type) ? ['x', 'y'] : action.type === 'key' ? ['key'] : action.type === 'text' ? ['text'] : [];
+  for (const field of required) if (action[field] === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${action.type} 需要 ${field}` });
+});
+const macroActionsSchema = z.array(macroActionSchema).min(1).max(200);
+const macroBranchSchema = z.object({
+  actions: macroActionsSchema.optional(), saveAs: z.string().trim().min(1).optional(),
+  playName: z.string().trim().min(1).optional(), listMacros: z.boolean().optional(),
+  stepMs: z.number().finite().min(0).max(5000).optional(), repeat: z.number().int().min(1).max(200).optional(),
+  repeatGapMs: z.number().finite().min(0).max(10000).optional(), screenshot: z.boolean().optional(),
+}).superRefine((input, ctx) => {
+  const branches = Number(input.listMacros === true) + Number(input.playName !== undefined) + Number(input.actions !== undefined);
+  if (branches !== 1) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'actions、playName、listMacros:true 必须且只能选择一种' });
+  if (input.saveAs !== undefined && input.actions === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'saveAs 必须与 actions 同时提供' });
+});
 
 server.tool(
   'phone_macro',
   '★连招★ 一次调用执行一串手机动作（点按 / 滑动 / 长按 / 按键 / 等待）——玩游戏、刷视频、重复操作时用这个，比一个个调 phone_tap 快几十倍。每条动作之间会自动等一小会儿，你也可以用 sleep 自己插延迟。',
   {
-    actions: z.array(z.object({
-      type: z.enum(['tap', 'swipe', 'longpress', 'key', 'sleep', 'text']).describe('动作类型'),
-      x: z.number().optional().describe('tap/longpress 的 x 坐标'),
-      y: z.number().optional().describe('tap/longpress 的 y 坐标'),
-      x2: z.number().optional().describe('swipe 终点 x'),
-      y2: z.number().optional().describe('swipe 终点 y'),
-      ms: z.number().optional().describe('longpress 时长 / sleep 毫秒 / swipe 滑动时长（默认 200）'),
-      key: z.string().optional().describe('key 动作：back/home/enter/recent/volume_up/volume_down/power/delete'),
-      text: z.string().optional().describe('text 动作：要输入的文本（支持中文 ✗ 需装 ADBKeyboard ✓）')
-    })).min(1).max(200).describe('动作列表，按顺序执行'),
+    actions: macroActionsSchema.optional().describe('执行/保存时提供动作列表；播放/列出时省略'),
     stepMs: z.number().optional().describe('每个动作之后默认等待毫秒（默认 400 ✗ 玩游戏可调小到 150）'),
     repeat: z.number().optional().describe('★整套动作重复几次（默认 1 ✗ 最多 200）✗ 玩游戏刷同一套操作时用它，只花一次调用'),
     repeatGapMs: z.number().optional().describe('每次重复之间的等待毫秒（默认 300 ✗ 打怪可以 100）'),
@@ -473,12 +546,21 @@ server.tool(
     listMacros: z.boolean().optional().describe('列出所有存过的宏'),
     screenshot: z.boolean().optional().describe('最后是否截图（默认 true ✗ 玩游戏想快就传 false）')
   },
-  async ({ actions, stepMs = 400, repeat = 1, repeatGapMs = 300, screenshot = true, saveAs, playName, listMacros }) => {
-    await ensureDevice();
+  async (input) => {
+    const checked = macroBranchSchema.safeParse(input);
+    if (!checked.success) return fail('宏参数无效：' + checked.error.issues.map((issue) => issue.message).join('；'));
+    let { actions, stepMs = 400, repeat = 1, repeatGapMs = 300, screenshot = !allowedTools || allowedTools.has('phone_screenshot'), saveAs, playName, listMacros } = checked.data;
+    if (screenshot && allowedTools && !allowedTools.has('phone_screenshot')) return fail('宏截图不在允许范围内');
     // ── 命名宏存取（存在 state/phone-macros.json）──
     const MACRO_FILE = process.env.PHONE_MACRO_FILE || path.join(os.homedir(), '.phone-mcp', 'macros.json');
-    const loadMacros = () => { try { return JSON.parse(fs.readFileSync(MACRO_FILE, 'utf8')); } catch { return {}; } };
-    const saveMacros = (m) => { try { fs.mkdirSync(path.dirname(MACRO_FILE), { recursive: true }); fs.writeFileSync(MACRO_FILE, JSON.stringify(m, null, 2), 'utf8'); } catch {} };
+    const loadMacros = () => {
+      try {
+        const value = JSON.parse(fs.readFileSync(MACRO_FILE, 'utf8'));
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('宏文件必须为对象');
+        return value;
+      } catch (error) { if (error.code === 'ENOENT') return {}; throw new Error('宏文件读取失败：' + error.message); }
+    };
+    const saveMacros = (m) => { fs.mkdirSync(path.dirname(MACRO_FILE), { recursive: true }); fs.writeFileSync(MACRO_FILE, JSON.stringify(m, null, 2), 'utf8'); };
 
     if (listMacros) {
       const m = loadMacros();
@@ -490,15 +572,23 @@ server.tool(
       const m = loadMacros();
       const hit = m[String(playName).trim()];
       if (!hit) return fail('没有叫「' + playName + '」的宏 ✗ 用 listMacros 看看有哪些 ✓');
-      actions = hit.actions;
+      const stored = macroActionsSchema.safeParse(hit.actions);
+      if (!stored.success) return fail('保存的宏动作无效，已取消播放');
+      actions = stored.data;
       if (hit.stepMs && stepMs === 400) stepMs = hit.stepMs;
       log('[macro] 播放宏 ' + playName + '（' + actions.length + ' 个动作 × ' + repeat + '）');
+    }
+    const capabilityByAction = { tap: 'phone_tap', swipe: 'phone_swipe', longpress: 'phone_long_press', text: 'phone_text', key: 'phone_key' };
+    if (Array.isArray(actions)) for (const action of actions) {
+      const capability = capabilityByAction[action.type];
+      if (capability && allowedTools && !allowedTools.has(capability)) return fail(`宏动作 ${action.type} 不在允许范围内（需要 ${capability}）`);
+      if (action.type === 'key') checkAllowedKey(action.key);
     }
     if (saveAs) {
       const nm = String(saveAs).trim().replace(/[^\w\-]/g, '_').slice(0, 40);
       if (!nm) return fail('saveAs 名字不合法');
       const m = loadMacros();
-      m[nm] = { actions: actions || [], stepMs, savedAt: new Date().toISOString() };
+      Object.defineProperty(m, nm, { value: { actions: actions || [], stepMs, savedAt: new Date().toISOString() }, enumerable: true, configurable: true, writable: true });
       saveMacros(m);
       log('[macro] 已存宏 ' + nm + '（' + (actions || []).length + ' 个动作）');
       return text('已存成宏「' + nm + '」✗ 以后用 phone_macro({playName:"' + nm + '", repeat:N}) 一键放 ✓');
@@ -506,6 +596,7 @@ server.tool(
     if (!Array.isArray(actions) || !actions.length) {
       return fail('要么给 actions ✗ 要么用 playName 放一个存过的宏（listMacros 看列表）');
     }
+    await ensureDevice();
     const done = [];
     const t0 = Date.now();
     try {
@@ -523,34 +614,35 @@ server.tool(
           done.push('sleep ' + ms);
           continue;
         }
+        const blocked = rateCheck('write');
+        if (blocked) throw new Error(blocked);
         if (type === 'tap') {
           if (a.x == null || a.y == null) throw new Error('tap 需要 x/y');
-          await adb(['shell', 'input', 'tap', String(Math.round(a.x)), String(Math.round(a.y))]);
+          await shell(`input tap ${Math.round(a.x)} ${Math.round(a.y)}`);
           done.push('tap(' + Math.round(a.x) + ',' + Math.round(a.y) + ')');
         } else if (type === 'longpress') {
           if (a.x == null || a.y == null) throw new Error('longpress 需要 x/y');
           const ms = Math.max(300, Math.min(10000, Number(a.ms ?? 800)));
           // adb 没有原生长按 ✗ 用 swipe 原地划（起点=终点 ✗ 时长=按压时长）
-          await adb(['shell', 'input', 'swipe', String(Math.round(a.x)), String(Math.round(a.y)),
-            String(Math.round(a.x)), String(Math.round(a.y)), String(ms)]);
+          await shell(`input swipe ${Math.round(a.x)} ${Math.round(a.y)} ${Math.round(a.x)} ${Math.round(a.y)} ${ms}`);
           done.push('longpress(' + Math.round(a.x) + ',' + Math.round(a.y) + ',' + ms + 'ms)');
         } else if (type === 'swipe') {
           if (a.x == null || a.y == null || a.x2 == null || a.y2 == null) throw new Error('swipe 需要 x/y/x2/y2');
           const ms = Math.max(50, Math.min(5000, Number(a.ms ?? 200)));
-          await adb(['shell', 'input', 'swipe', String(Math.round(a.x)), String(Math.round(a.y)),
-            String(Math.round(a.x2)), String(Math.round(a.y2)), String(ms)]);
+          await shell(`input swipe ${Math.round(a.x)} ${Math.round(a.y)} ${Math.round(a.x2)} ${Math.round(a.y2)} ${ms}`);
           done.push('swipe(' + Math.round(a.x) + ',' + Math.round(a.y) + '→' + Math.round(a.x2) + ',' + Math.round(a.y2) + ')');
         } else if (type === 'key') {
           const k = String(a.key || '').trim();
+          checkAllowedKey(k);
           const allowed = ['back', 'home', 'enter', 'recent', 'volume_up', 'volume_down', 'power', 'delete'];
           if (!allowed.includes(k)) throw new Error('key 只能是: ' + allowed.join('/'));
-          await adb(['shell', 'input', 'keyevent', k.toUpperCase()]);
+          const keys = { back: 4, home: 3, enter: 66, recent: 187, volume_up: 24, volume_down: 25, power: 26, delete: 67 };
+          await shell(`input keyevent ${keys[k]}`);
           done.push('key ' + k);
         } else if (type === 'text') {
           const s = String(a.text ?? '');
           if (!s) throw new Error('text 不能为空');
-          await ensureIme();
-          await adb(['shell', 'am', 'broadcast', '-a', 'ADB_INPUT_TEXT', '--es', 'msg', s]);
+          await inputPhoneText(s);
           done.push('text(' + s.slice(0, 12) + ')');
         } else {
           throw new Error('未知动作类型: ' + type);
@@ -563,6 +655,9 @@ server.tool(
       const sec = ((Date.now() - t0) / 1000).toFixed(2);
       let shotLine = '';
       if (screenshot) {
+        const blocked = rateCheck('look');
+        if (blocked) throw new Error(blocked);
+        fs.mkdirSync(SHOT_DIR, { recursive: true });
         const shot = await adb(['shell', 'screencap', '-p', '/sdcard/_macro.png']);
         const pull = await adb(['pull', '/sdcard/_macro.png', path.join(SHOT_DIR, 'macro.png')], { timeout: 30000 });
         await adb(['shell', 'rm', '/sdcard/_macro.png']);
@@ -584,7 +679,7 @@ server.tool('phone_status', '查看 adb 是否可用、当前连接了哪些设�
     `adb: ${v.ok ? v.out.split(/\r?\n/)[0] : '不可用 ' + v.err}\n` +
       `adb 路径: ${ADB}\n` +
       `当前设备:\n${d.out || d.err}\n` +
-      `已选中: ${SERIAL || '（未选，将用第一台）'}`
+      `已选中: ${deviceBinding.selected || '（未选，仅一台在线时自动绑定）'}`
   );
 });
 
@@ -602,19 +697,24 @@ server.tool(
   }
 );
 
+const CONNECT_PORT_HELP = '必须显式填写 1–65535 的数字连接端口；请查看「无线调试」主页的 IP 地址和端口，不是「使用配对码配对设备」弹窗的配对端口。不会默认使用 5555。';
+const validConnectPort = (port) => typeof port === 'string' && /^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535;
+
 server.tool(
   'phone_connect',
-  '连接手机（无线调试里的 ip:端口，例如 192.168.1.98:5555）。连上后本机就能控制它。',
+  '连接手机。host 和 port 须来自「无线调试」主页的 IP 地址和端口（例如 192.168.1.98:35315），不要使用配对弹窗的端口。连上后本机就能控制它。',
   {
     host: z.string().describe('手机 IP'),
-    port: z.string().default('5555').describe('调试端口，默认 5555'),
+    port: z.string({ required_error: CONNECT_PORT_HELP, invalid_type_error: CONNECT_PORT_HELP })
+      .regex(/^[1-9]\d{0,4}$/, CONNECT_PORT_HELP).refine(validConnectPort, CONNECT_PORT_HELP).describe(CONNECT_PORT_HELP),
   },
   async ({ host, port }) => {
+    if (!validConnectPort(port)) return fail(CONNECT_PORT_HELP);
     const r = await adb(['connect', `${host}:${port}`], { timeout: 60000, serial: false });
-    if (!/connected to/i.test(r.out)) return fail(`连接失败：${r.err || r.out}`);
-    SERIAL = `${host}:${port}`;
+    if (!r.ok || !/connected to/i.test(r.out)) return fail(`连接失败：${r.err || r.out}`);
+    const selected = deviceBinding.select(`${host}:${port}`);
     const sz = await shell('wm size');
-    return text(`已连接 ${SERIAL} ✓\n屏幕: ${sz.trim()}`);
+    return text(`已连接 ${selected} ✓\n屏幕: ${sz.trim()}`);
   }
 );
 
@@ -622,8 +722,9 @@ server.tool('phone_devices', '列出所有 adb 设备，并可直接切换当前
   use: z.string().optional().describe('要切换到的设备序列号（可选）'),
 }, async ({ use }) => {
   const d = await adb(['devices', '-l'], { serial: false });
-  if (use) SERIAL = use;
-  return text(`${d.out}\n当前选中: ${SERIAL || '（自动选第一台）'}`);
+  if (!d.ok) return fail(`列出设备失败：${d.err || d.out}`);
+  if (use) deviceBinding.select(use);
+  return text(`${d.out}\n当前选中: ${deviceBinding.selected || '（未选，仅一台在线时自动绑定）'}`);
 });
 
 server.tool('phone_screenshot', '给手机截屏并存成 PNG，返回文件路径（可直接看图）。', {
@@ -732,42 +833,21 @@ server.tool('phone_tap_text', '按界面上显示的文字/描述找到元素并
 });
 
 server.tool('phone_text', '往当前输入框打字（支持中文，需手机装有 ADBKeyboard 输入法；纯英文数字无需）。', {
-  text: z.string().describe('要输入的文字'),
+  text: z.string().min(1).describe('要输入的文字'),
 }, async ({ text: content }) => {
   try {
     await ensureDevice();
-    const has = await shell('ime list -a');
-    const hasAdbKb = /com\.android\.adbkeyboard/i.test(has);
-    const ascii = /^[\x20-\x7e]*$/.test(content);
-    if (ascii) {
-      await shell(`input text '${content.replace(/'/g, "'\\''")}'`);
-      return text(`已输入（ADB 原生）: ${content}`);
-    }
-    if (!hasAdbKb) {
-      return fail(
-        '这段文字含中文，需要手机安装 ADBKeyboard 输入法（开源，一次性装好即可）。\n' +
-          '装好后重试；或改用纯英文/数字。'
-      );
-    }
-    // ★ 雷电/安卓14 上【ime set 永远失败】✗ 必须用 settings put secure ✓
-    const cur = (await shell('settings get secure default_input_method')).trim();
-    const IME = 'com.android.adbkeyboard/.AdbIME';
-    await shell(`ime enable ${IME}`);
-    await shell(`settings put secure enabled_input_methods "${IME}:${cur || 'com.android.inputmethod.pinyin/.InputService'}"`);
-    await shell(`settings put secure default_input_method ${IME}`);
-    await new Promise((r) => setTimeout(r, 600));
-    await shell(`am broadcast -a ADB_INPUT_TEXT --es msg '${content.replace(/'/g, "'\\''")}'`);
-    // 切回原来的输入法（她不用的时候保持正常）
-    if (cur && cur !== IME) await shell(`settings put secure default_input_method ${cur}`);
-    return text(`已输入（ADBKeyboard）: ${content}`);
-  } catch (e) {
-    return fail(`输入失败：${e?.message ?? e}`);
+    const method = await inputPhoneText(content);
+    return text(`已输入（${method}）: ${content}`);
+  } catch (error) {
+    return fail(`输入失败：${error.message}`);
   }
 });
 
 server.tool('phone_key', '按手机按键：back / home / enter / recent / volume_up / volume_down / power / delete。', {
   key: z.enum(['back', 'home', 'enter', 'recent', 'volume_up', 'volume_down', 'power', 'delete', 'menu']),
 }, async ({ key }) => {
+  checkAllowedKey(key);
   const map = {
     back: 4, home: 3, enter: 66, recent: 187, volume_up: 24, volume_down: 25, power: 26, delete: 67, menu: 82,
   };
@@ -792,40 +872,239 @@ server.tool('phone_swipe', '滑动屏幕（例如从下往上滑返回桌面、�
   }
 });
 
+server.tool('phone_long_press', '长按手机屏幕上的指定坐标（默认 1.5 秒），常用于长按图片弹出操作菜单（如保存图片、添加到表情包）。', {
+  x: z.number().int().describe('横坐标'),
+  y: z.number().int().describe('纵坐标'),
+  ms: z.number().int().min(500).max(5000).default(1500).describe('长按毫秒数，默认 1500ms'),
+}, async ({ x, y, ms }) => {
+  try {
+    await shell(`input swipe ${x} ${y} ${x} ${y} ${ms}`);
+    return text(`已在 (${x}, ${y}) 长按 ${ms}ms`);
+  } catch (e) {
+    return fail(`长按失败：${e?.message ?? e}`);
+  }
+});
+
+server.tool(
+  'phone_steal_meme',
+  '截取表情区域并连同具体含义和使用场景保存至手机相册。仅支持 crop_save；长按菜单无法确认保存文件，不能保证描写绑定。',
+  {
+    mode: z.enum(['crop_save', 'long_press']).default('crop_save').describe('使用 crop_save 截图裁剪存相册；long_press 会明确拒绝'),
+    bounds: z.string().max(80).optional().describe('表情包坐标，如 "[200,600][800,1200]" 或 "center" 或 "fullscreen"'),
+    name: z.string().max(160).optional().describe('可选表情名称，不能代替具体描写'),
+    description: z.string().min(1).max(1200).describe('必填：画面内容、具体意思和适用语境，必须根据实际图片填写'),
+    aiDescription: z.string().max(1200).optional().describe('可选：AI 选图补充及避免使用的语境'),
+  },
+  async ({ mode, bounds, name, description, aiDescription }, execution = {}) => {
+    let localShot, localMeme, localMetadata, remoteShot, remotePending, remoteMemePath, remoteMetadataPath;
+    let completed = false, deviceStarted = false;
+    const active = () => { execution.signal?.throwIfAborted(); deviceBinding.signal()?.throwIfAborted(); };
+    const deviceCommand = async (args) => {
+      active();
+      const result = await adb(args, { signal: execution.signal || deviceBinding.signal() });
+      active();
+      if (!result.ok) throw new Error('手机文件操作失败，请检查连接或存储权限');
+      return result;
+    };
+    try {
+      // Reject unsupported or missing-description calls before any device probe or action.
+      const meaning = normalizeMemeDescription(description, { required: true });
+      const aiMeaning = normalizeMemeDescription(aiDescription);
+      if (mode === 'long_press') return fail('long_press 无法确认保存文件并绑定描写，未操作手机；请改用 crop_save。');
+      if (mode !== 'crop_save') throw new Error('请使用 crop_save 保存表情和描写');
+      if (name !== undefined && (typeof name !== 'string' || name.length > 160 || name.includes('\0'))) throw new Error('表情名称最多 160 字符');
+      active();
+      await ensureDevice();
+      active();
+      deviceStarted = true;
+      const id = randomUUID(), tag = (name || 'meme').replace(/[^\w\u4e00-\u9fa5]/g, '_').slice(0, 60);
+      fs.mkdirSync(SHOT_DIR, { recursive: true });
+      localShot = path.join(SHOT_DIR, `shot-${id}.png`);
+      remoteShot = `/sdcard/_dsh_meme_shot_${id}.png`;
+      await deviceCommand(['shell', `screencap -p ${quoteShell(remoteShot)}`]);
+      await deviceCommand(['pull', remoteShot, localShot]);
+      if (!fs.existsSync(localShot) || !fs.statSync(localShot).size) throw new Error('截图拉取失败');
+
+      const memeFileName = `${tag}-${id}.jpg`;
+      localMeme = path.join(SHOT_DIR, memeFileName);
+      localMetadata = localMeme + '.json';
+      let cropFilter = '';
+      if (bounds && bounds !== 'center' && bounds !== 'fullscreen') {
+        const bm = bounds.match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
+        if (!bm) throw new Error('裁剪区域格式无效');
+        const x1 = Number(bm[1]), y1 = Number(bm[2]);
+        const width = Number(bm[3]) - x1, height = Number(bm[4]) - y1;
+        if (![x1, y1, width, height].every(Number.isSafeInteger) || width <= 50 || height <= 50) throw new Error('裁剪区域必须有效且大于 50 像素');
+        cropFilter = `crop=${width}:${height}:${x1}:${y1}`;
+      }
+      if (!cropFilter && bounds !== 'fullscreen') cropFilter = 'crop=iw*0.8:ih*0.45:iw*0.1:ih*0.25';
+      const ffmpegArgs = ['-y', '-hide_banner', '-loglevel', 'error', '-i', localShot];
+      if (cropFilter) ffmpegArgs.push('-vf', cropFilter);
+      ffmpegArgs.push(localMeme);
+      active();
+      const converted = await runFfmpeg(ffmpegArgs, 120000, { signal: execution.signal || deviceBinding.signal() });
+      active();
+      if (!converted.ok || !fs.existsSync(localMeme)) throw new Error('图片裁剪失败');
+      const stat = fs.lstatSync(localMeme);
+      if (!stat.isFile() || stat.isSymbolicLink() || !stat.size || stat.size > 8 * 1024 * 1024) throw new Error('裁剪图片为空或超过 8 MiB');
+      fs.chmodSync(localMeme, 0o600);
+      fs.writeFileSync(localMetadata, JSON.stringify({ title: (name || '').trim(), tags: [], description: meaning, aiDescription: aiMeaning }), { flag: 'wx', mode: 0o600 });
+      const remoteDir = '/sdcard/Pictures/大肥鱼表情包';
+      remoteMemePath = `${remoteDir}/${memeFileName}`;
+      remotePending = `${remoteDir}/.${id}.pending`;
+      remoteMetadataPath = remoteMemePath + '.json';
+      await deviceCommand(['shell', `mkdir -p ${quoteShell(remoteDir)}`]);
+      // A visible album image is published only after its exact sidecar is saved.
+      await deviceCommand(['push', localMetadata, remoteMetadataPath]);
+      await deviceCommand(['push', localMeme, remotePending]);
+      await deviceCommand(['shell', `mv ${quoteShell(remotePending)} ${quoteShell(remoteMemePath)}`]);
+      await deviceCommand(['shell', `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d ${quoteShell('file://' + remoteMemePath)}`]);
+      active();
+      completed = true;
+      return text(JSON.stringify({ ok: true, path: localMeme, metadataPath: localMetadata, remotePath: remoteMemePath,
+        remoteMetadataPath, description: meaning, aiDescription: aiMeaning, note: '表情与描写已一同保存至本地和手机相册。' }));
+    } catch (e) {
+      return fail(`盗表情包失败：${e?.message ?? e}`);
+    } finally {
+      if (localShot) fs.rmSync(localShot, { force: true });
+      if (!completed) {
+        if (localMeme) fs.rmSync(localMeme, { force: true });
+        if (localMetadata) fs.rmSync(localMetadata, { force: true });
+      }
+      // Never perform more device operations after a cancellation.
+      if (deviceStarted && !execution.signal?.aborted && !deviceBinding.signal()?.aborted) {
+        const cleanup = [remoteShot, ...(!completed ? [remotePending, remoteMemePath, remoteMetadataPath] : [])].filter(Boolean);
+        if (cleanup.length) await adb(['shell', `rm -f ${cleanup.map(quoteShell).join(' ')}`], { signal: execution.signal || deviceBinding.signal() }).catch(() => {});
+      }
+    }
+  }
+);
+
+server.tool(
+  'phone_listen',
+  '录制手机当前播放的内部声音，时长 1~30 秒（默认 5 秒）。显式配置 STT 后返回转写；分别报告采集和识别状态。',
+  {
+    seconds: z.number().int().min(1).max(MAX_LISTEN_SECONDS).default(Math.min(5, MAX_LISTEN_SECONDS)).describe('听几秒，不超过配置的时长上限'),
+  },
+  async ({ seconds }, execution = {}) => {
+    try {
+      if (!Number.isInteger(seconds) || seconds < 1 || seconds > MAX_LISTEN_SECONDS) throw new Error('录音时长超过允许范围');
+      const serial = await ensureDevice();
+      fs.mkdirSync(SHOT_DIR, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const audioPath = path.join(SHOT_DIR, `audio-${stamp}.m4a`);
+      const args = [
+        '-s', serial,
+        '--no-video',
+        '--no-playback',
+        '--no-control',
+        '--require-audio',
+        '--audio-source=playback',
+        '--record=' + audioPath,
+        `--time-limit=${seconds}`
+      ];
+      await new Promise((resolve, reject) => {
+        execFile('scrcpy', args, { timeout: (seconds + 15) * 1000, signal: execution.signal }, (err) => {
+          if (!err && fs.existsSync(audioPath) && fs.statSync(audioPath).size > 100) {
+            resolve();
+          } else {
+            reject(err || new Error('录制手机音频未捕获到声音流'));
+          }
+        });
+      });
+      const size = fs.statSync(audioPath).size;
+      execution.signal?.throwIfAborted();
+      const timing = await probeCaptureDuration(audioPath, { requestedSeconds: seconds, signal: execution.signal, runCommand: execFileAsync, ffprobePath: process.env.PHONE_FFPROBE || 'ffprobe' });
+      execution.signal?.throwIfAborted();
+      const transcription = await transcribeCapturedAudio(audioPath, { signal: execution.signal });
+      execution.signal?.throwIfAborted();
+      return { ...text(`手机录音已保存（${captureDurationText(timing)}；音频文件：${audioPath}，大小：${(size / 1024).toFixed(1)} KB）。\n${audioStatusText(transcription)}`),
+        structuredContent: { capture: { status: 'succeeded', file: audioPath, ...timing, seconds: timing.actualDurationSeconds, bytes: size }, transcription } };
+    } catch (e) {
+      return fail(`听声音失败：${e?.message ?? e}`);
+    }
+  }
+);
+
 server.tool('phone_open_app', '按包名或关键字启动一个 App（例如 com.tencent.mm 微信）。', {
   pkg: z.string().describe('包名或关键字')
 }, async ({ pkg }) => {
   await ensureDevice();
   const target = String(pkg || '').trim();
   if (!target) return fail('要启动什么？给包名或关键字。');
-  // RAW_ADB_OK：am start 有时返回非零但仍然成功 ✗ 所以这里不用会抛异常的 shell()
+  // Transport failures abort; recognizable Android launch errors may use the documented fallback.
   const run = async (cmd) => {
     const r = await adb(['shell', cmd], { timeout: 20000 });
-    return String(r.out || '') + String(r.err || '');
+    const output = String(r.out || '') + String(r.err || '');
+    if (!r.ok && !/^(?:Error|Exception|Unable to|No activity found)/im.test(output)) throw new Error('ADB 启动命令失败：' + output);
+    return output;
   };
-  let out = await run(`am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p ${target}`);
+  let out = await run(`am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p ${quoteShell(target)}`);
   const bad = (s) => /Error|not found|Exception|does not exist|Unable to/i.test(s);
   if (bad(out)) {
     // 兜底 1：拿启动组件直接起
-    const comp = await run(`cmd package resolve-activity --brief ${target}`);
+    const comp = await run(`cmd package resolve-activity --brief ${quoteShell(target)}`);
     const line = String(comp).trim().split(/\r?\n/).filter(Boolean).pop() || '';
     if (line.includes('/')) {
-      out = await run(`am start -n ${line.trim()}`);
+      out = await run(`am start -n ${quoteShell(line.trim())}`);
     }
     // 兜底 2：按关键字搜包名
     if (bad(out)) {
-      const pkgs = await run(`pm list packages | grep -i ${target}`);
+      const pkgs = await run(`pm list packages | grep -iF -- ${quoteShell(target)}`);
       const first = String(pkgs).split(/\r?\n/).map((s) => s.replace('package:', '').trim()).filter(Boolean)[0];
       if (first) {
-        const comp2 = await run(`cmd package resolve-activity --brief ${first}`);
+        const comp2 = await run(`cmd package resolve-activity --brief ${quoteShell(first)}`);
         const l2 = String(comp2).trim().split(/\r?\n/).filter(Boolean).pop() || '';
-        if (l2.includes('/')) out = await run(`am start -n ${l2.trim()}`);
+        if (l2.includes('/')) out = await run(`am start -n ${quoteShell(l2.trim())}`);
       }
     }
   }
   if (bad(out)) return fail('启动失败：' + out.slice(0, 200));
-  return text('已启动 ' + target + '\n' + out.slice(0, 200));
+  const focus = await shell('dumpsys window | grep -E "mCurrentFocus|mFocusedApp"');
+  const packageName = (out.match(/(?:cmp=|ComponentInfo\{)([\w.]+)\//) || [])[1] || (/^[\w]+(?:\.[\w]+)+$/.test(target) ? target : '');
+  if (!packageName || !focus.includes(packageName + '/')) return fail('启动命令已执行，但未能确认目标应用处于前台：' + target);
+  return text('已确认应用处于前台 ' + packageName + '\n' + out.slice(0, 200));
 });
+
+server.tool(
+  'phone_qq_send',
+  '在手机 QQ 明确配置的唯一收件人范围内发送。需 PHONE_QQ_SEND_PROFILE 提供已核对的标题、稳定身份标记及控件 ID；无法验证则拒绝。',
+  {
+    message: z.string().describe('要发送的消息内容（支持中文）'),
+    target: z.string().optional().describe('必须与显式发送范围一致；省略时仍需验证绑定收件人会话'),
+  },
+  async ({ message, target }) => {
+    try {
+      if (typeof message !== 'string' || !message.trim()) throw new Error('消息内容不能为空');
+      if (!process.env.PHONE_QQ_SEND_PROFILE) throw new Error('手机 QQ 发送未配置可验证的收件人范围（PHONE_QQ_SEND_PROFILE），已取消发送');
+      const profile = validateQqSendProfile(JSON.parse(fs.readFileSync(path.resolve(process.env.PHONE_QQ_SEND_PROFILE), 'utf8')));
+      if (target !== undefined && target !== profile.recipientName) throw new Error('联系人不在明确配置的发送范围内');
+      await ensureDevice();
+      const focus = await shell('dumpsys window | grep -E "mCurrentFocus|mFocusedApp"');
+      if (!focus.includes('com.tencent.mobileqq/')) throw new Error('QQ 不在前台，已取消发送');
+      const dump = async () => uiNodes(await shell('uiautomator dump /sdcard/_dsh_ui.xml && cat /sdcard/_dsh_ui.xml'));
+      let nodes = await dump();
+      if (!verifiedQqSession(nodes, profile)) {
+        const contact = qqContact(nodes, profile);
+        await shell(`input tap ${contact.point.x} ${contact.point.y}`);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        nodes = await dump();
+      }
+      const { editor } = qqSendControls(nodes, profile);
+      if (editor.text) throw new Error('聊天输入框已有草稿，已取消发送');
+      await shell(`input tap ${editor.point.x} ${editor.point.y}`);
+      await inputPhoneText(message);
+      const finalNodes = await dump();
+      const controls = qqSendControls(finalNodes, profile);
+      if (controls.editor.text !== message) throw new Error('无法确认已输入文字完全一致，已取消点击发送');
+      await shell(`input tap ${controls.send.point.x} ${controls.send.point.y}`);
+      return text(`已在已验证会话 ${profile.recipientName} 点击发送：“${message}”。是否送达请核对聊天记录。`);
+    } catch (error) {
+      return fail(`QQ 发消息失败：${error.message}`);
+    }
+  }
+
+);
 
 // ── 看视频：抽帧成图片（LLM 不能直接看视频，但能"看"这一串画面）──────────────
 // 允许的视频来源：截图目录/媒体目录里的文件、http(s) 链接；不允许任意本地路径。
@@ -845,10 +1124,10 @@ function findFfmpeg() {
   return 'ffmpeg';
 }
 
-async function runFfmpeg(args, timeout = 120000) {
+async function runFfmpeg(args, timeout = 120000, { signal } = {}) {
   const bin = findFfmpeg();
   return await new Promise((resolve) => {
-    execFile(bin, args, { timeout, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+    execFile(bin, args, { timeout, signal, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
       resolve({ ok: !err, out: String(stdout ?? ''), err: String(stderr ?? err?.message ?? '') });
     });
   });
@@ -907,29 +1186,63 @@ server.tool(
 
 server.tool(
   'phone_record_screen',
-  '录一段手机屏幕（最多 60 秒），然后自动抽帧成图片返回 —— 用来"看"手机上发生的过程。',
+  '录制手机屏幕并返回抽帧；音轨采集与 STT 识别分别报告，未配置识别服务时不会宣称听懂。',
   {
-    seconds: z.number().int().min(1).max(60).default(10).describe('录多久，默认 10 秒'),
+    seconds: z.number().int().min(1).max(configuredListenLimit === undefined ? 60 : MAX_LISTEN_SECONDS).default(Math.min(10, configuredListenLimit === undefined ? 60 : MAX_LISTEN_SECONDS)).describe('录多久；配置音频时长上限时同时受其约束'),
     frames: z.number().int().min(2).max(12).default(6).describe('抽几帧'),
   },
-  async ({ seconds, frames }) => {
+  async ({ seconds, frames }, execution = {}) => {
     try {
-      await ensureDevice();
+      if (!Number.isInteger(seconds) || seconds < 1 || seconds > (configuredListenLimit === undefined ? 60 : MAX_LISTEN_SECONDS)) throw new Error('录屏时长超过允许范围');
+      const serial = await ensureDevice();
       fs.mkdirSync(SHOT_DIR, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const remote = '/sdcard/_dsh_rec.mp4';
       const local = path.join(SHOT_DIR, `rec-${stamp}.mp4`);
-      await shell(`screenrecord --time-limit ${seconds} --bit-rate 4000000 ${remote}`, (seconds + 30) * 1000);
-      const pull = await adb(['pull', remote, local], { timeout: 120000 });
-      if (!pull.ok || !fs.existsSync(local)) return fail(`录屏拉取失败：${pull.err || pull.out}`);
+
+      let recordedViaScrcpy = false;
+      try {
+        const scrcpyArgs = [
+          '-s', serial,
+          '--no-playback',
+          '--no-control',
+          '--require-audio',
+          '--audio-source=playback',
+          '--record=' + local,
+          `--time-limit=${seconds}`
+        ];
+        await new Promise((resolve, reject) => {
+          execFile('scrcpy', scrcpyArgs, { timeout: (seconds + 15) * 1000, signal: execution.signal }, (err) => {
+            if (!err && fs.existsSync(local) && fs.statSync(local).size > 1000) {
+              recordedViaScrcpy = true;
+              resolve();
+            } else {
+              reject(err || new Error('scrcpy 录屏产出为空'));
+            }
+          });
+        });
+      } catch {
+        execution.signal?.throwIfAborted();
+        // 回退到原生 screenrecord
+        const remote = '/sdcard/_dsh_rec.mp4';
+        await shell(`screenrecord --time-limit ${seconds} --bit-rate 4000000 ${remote}`, (seconds + 30) * 1000);
+        const pull = await adb(['pull', remote, local], { timeout: 120000 });
+        if (!pull.ok || !fs.existsSync(local)) return fail(`录屏拉取失败：${pull.err || pull.out}`);
+      }
+
       const outDir = path.join(SHOT_DIR, 'recframes-' + stamp);
       fs.mkdirSync(outDir, { recursive: true });
       const res = await runFfmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', local,
         '-vf', `fps=${(frames / Math.max(1, seconds)).toFixed(4)},scale='min(720,iw)':-2`,
-        '-frames:v', String(frames), path.join(outDir, 'f%02d.jpg')]);
+        '-frames:v', String(frames), path.join(outDir, 'f%02d.jpg')], 120000, { signal: execution.signal });
+      execution.signal?.throwIfAborted();
       const files = fs.readdirSync(outDir).filter((f) => f.endsWith('.jpg')).sort();
       if (!files.length) return fail(`录屏抽帧失败：${res.err.slice(0, 200)}（视频在 ${local}）`);
-      const content = [{ type: 'text', text: `手机录屏 ${seconds} 秒，抽了 ${files.length} 帧（视频：${local}）` }];
+      const timing = await probeCaptureDuration(local, { requestedSeconds: seconds, stream: 'video', signal: execution.signal, runCommand: execFileAsync, ffprobePath: process.env.PHONE_FFPROBE || 'ffprobe' });
+      execution.signal?.throwIfAborted();
+      const transcription = await transcribeCapturedAudio(local, { hasAudio: recordedViaScrcpy, signal: execution.signal });
+      execution.signal?.throwIfAborted();
+      const audioStatus = recordedViaScrcpy ? '（音轨已采集）' : '（纯画面）';
+      const content = [{ type: 'text', text: `手机录屏已保存（${captureDurationText(timing)}）${audioStatus}，抽了 ${files.length} 帧（视频：${local}）\n${audioStatusText(transcription)}` }];
       for (const f of files) {
         const p = path.join(outDir, f);
         if (fs.statSync(p).size > 0) {
@@ -937,46 +1250,13 @@ server.tool(
           content.push({ type: 'image', data: fs.readFileSync(p).toString('base64'), mimeType: 'image/jpeg' });
         }
       }
-      return { content };
+      return { content, structuredContent: { capture: { status: 'succeeded', file: local, ...timing, seconds: timing.actualDurationSeconds, frames: files.length, audio: recordedViaScrcpy }, transcription } };
     } catch (e) {
       return fail(`录屏失败：${e?.message ?? e}`);
     }
   }
 );
 
-// ── 硬性限流：把"别太过分"写进代码（不靠她自觉）──────────────────────────
-// 写操作（点按/打字/滑动/按键/开应用/shell）每天上限、每分钟上限；
-// 截图/录屏也有上限，避免她一直盯着你的屏幕看。
-const RATE_LIMIT = {
-  write: { perMinute: 5, perDay: 40, hits: [] },
-  look:  { perMinute: 3, perDay: 80, hits: [] },
-};
-function rateCheck(kind) {
-  const rl = RATE_LIMIT[kind];
-  const now = Date.now();
-  rl.hits = rl.hits.filter((t) => now - t < 24 * 3600 * 1000);
-  const lastMin = rl.hits.filter((t) => now - t < 60000).length;
-  if (lastMin >= rl.perMinute) return `【限流】${kind} 类操作每分钟最多 ${rl.perMinute} 次，已拒绝。`;
-  if (rl.hits.length >= rl.perDay) return `【限流】${kind} 类操作每天最多 ${rl.perDay} 次，今天已用完，请明天再来。`;
-  rl.hits.push(now);
-  return null;
-}
-const WRITE_TOOLS = new Set(['phone_tap', 'phone_tap_text', 'phone_text', 'phone_swipe', 'phone_key', 'phone_open_app', 'phone_shell']);
-const LOOK_TOOLS = new Set(['phone_screenshot', 'phone_dump', 'phone_record_screen']);
-server.tool = new Proxy(server.tool.bind(server), {
-  apply(target, thisArg, args) {
-    const name = args[0];
-    const kind = WRITE_TOOLS.has(name) ? 'write' : LOOK_TOOLS.has(name) ? 'look' : null;
-    if (!kind) return Reflect.apply(target, thisArg, args);
-    const handler = args[args.length - 1];
-    args[args.length - 1] = async (...rest) => {
-      const blocked = rateCheck(kind);
-      if (blocked) return fail(blocked);
-      return await handler(...rest);
-    };
-    return Reflect.apply(target, thisArg, args);
-  },
-});
 // ── QQ 空间（说说）：发/看/赞/评（删除与拉黑故意不提供）──────────────────────
 // 只给"创作类"能力，符合她"不删任何东西"的规矩；带频率上限防刷屏。
 function htmlToText(s) {

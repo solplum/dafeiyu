@@ -1,3 +1,4 @@
+import WebSocketFallback from 'ws';
 // 网易云音乐 PC 版控制模块
 // 原理：客户端带 --remote-debugging-port=9222 启动后，用 CDP 注入 webpackJsonp 偷出 require，
 //       然后读写它的内部 redux store（playing / async:listenTogether）。
@@ -21,8 +22,12 @@ async function cdpTargetUrl() {
 }
 
 function cdpEvalOnce(wsUrl, expression, timeoutMs = 20000) {
+  const WebSocketImpl = typeof globalThis.WebSocket === 'function' ? globalThis.WebSocket : (typeof WebSocketFallback === 'function' ? WebSocketFallback : undefined);
+  if (typeof WebSocketImpl !== 'function') {
+    return Promise.reject(new Error('网易云 CDP 需要全局 WebSocket；当前 Node.js 版本不支持，请升级 Node.js 后重试'));
+  }
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocketImpl(wsUrl);
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;

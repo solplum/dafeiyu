@@ -21,7 +21,7 @@ AI 就能：
 - 点按钮、滑列表、打字、按返回
 - 打开某个 App，然后一连串操作（连招 / 宏）
 - 录一段屏幕，抽成关键帧"看"整个过程
-- 顺手控制网易云音乐播放、看评论、在「一起听」房间里说话
+- 控制网易云音乐播放、看评论（房间发言尚无可靠确认，当前明确禁用）
 - 刷 QQ 空间、点赞、评论
 
 **手机侧不需要装任何东西**（中文输入可选装 ADBKeyboard）。
@@ -52,14 +52,14 @@ export PHONE_ADB=/path/to/adb        # Windows: set PHONE_ADB=D:\platform-tools\
 
 手机：`设置 → 开发者选项 → 无线调试 → 使用配对码配对设备`
 
-你会看到一组 `IP:端口` 和一个 6 位配对码。然后在 MCP 客户端里调用：
+配对弹窗会显示一组 `IP:配对端口` 和一个 6 位配对码，先在 MCP 客户端里调用 `phone_pair`。配对成功后返回**无线调试主页**，读取「IP 地址和端口」中的**连接端口**，再调用 `phone_connect`。这两个端口通常不同：
 
 ```
 phone_pair   host=192.168.1.98  port=37821  code=123456
-phone_connect host=192.168.1.98 port=5555
+phone_connect host=192.168.1.98 port=35315
 ```
 
-> 配对只需做一次。之后每次重连只要 `phone_connect`。
+> 上面端口仅为示例，请填写手机当前显示的值。`phone_connect` 必须显式提供 1–65535 的数字连接端口，不会猜测 5555。已配对的设备通常只需重新连接；无线调试端口可能在重启或重新开启后变化。只有设备确实使用固定 5555 时才显式填写 `port=5555`。
 
 **方式 B · USB**
 
@@ -81,7 +81,7 @@ MCP 客户端配置（以通用 stdio 形式为例）：
       "command": "npx",
       "args": ["-y", "phone-mcp"],
       "env": {
-        "PHONE_SERIAL": "192.168.1.98:5555"
+        "PHONE_SERIAL": "192.168.1.98:35315"
       }
     }
   }
@@ -103,7 +103,21 @@ MCP 客户端配置（以通用 stdio 形式为例）：
 
 ---
 
-## 34 个工具
+## 当前执行边界
+
+已通过 PHONE_SERIAL、phone_devices(use) 或 phone_connect 选定的设备掉线时直接报错；不会切换到另一台在线手机。多步操作固定调用开始时的设备，GUI 动作串行执行。
+
+宿主可设置 PHONE_ALLOWED_TOOLS、PHONE_ALLOWED_KEYS（JSON 数组或逗号分隔）及 PHONE_MAX_LISTEN_SECONDS。宏中的子动作和末尾截图也检查同一权限；只列出/保存宏不连接手机。宏的 actions、playName、listMacros 是互斥用法。
+
+phone_listen/phone_record_screen 分别报告采集与识别结果。识别使用共享 VoiceProcessor，显式设置 PHONE_STT_CONFIG（stt 对象 JSON）或 PHONE_STT_CONFIG_FILE（含 stt 的配置文件），两者互斥。未配置就返回录音已保存、尚未识别，不编造听见的内容。取消请求会传到录制、解码和识别。DSH 的本地 speechToText 服务不会自动出现在独立 MCP 中，需显式配置可供该进程使用的识别方式。
+
+phone_listen 回执的 requestedSeconds 是请求上限，actualDurationSeconds 是本地 ffprobe 探测的实际时长；seconds 兼容字段只保留实际值或 null。durationStatus=unknown 表示无法测量，partial=true 表示音频短于请求。scrcpy 初始化可能占用时间上限，因此不能据 time-limit 参数声称已录满。可用 PHONE_FFPROBE 指定本机 ffprobe；探测失败保留已有录音，不自动下载工具。
+
+手机 QQ GUI 发送默认拒绝。只有配置 PHONE_QQ_SEND_PROFILE 指向已核对的身份与控件配置后才可用；必须同时匹配会话标题和稳定收件人身份，普通同名消息无法通过检查。配置包含 version:1、recipientName、recipientIdentity、titleResourceId、identityResourceId、editorResourceId、sendResourceId，可选 contactResourceId。控件 ID 必须属于 com.tencent.mobileqq:id/。真实设备未验收前不要猜控件 ID。发送工具只确认点击动作，不能代替送达回执。
+
+源码 bin 已包含 Node 解释器声明，NCM 使用打包依赖 ws 兼容 Node 18。依赖需按 package.json 正常安装；离线测试不会自动下载。
+
+## 工具
 
 ### 📱 设备与连接（4）
 
@@ -111,7 +125,7 @@ MCP 客户端配置（以通用 stdio 形式为例）：
 |---|---|
 | `phone_status` | adb 是否可用、认到了哪些设备 |
 | `phone_pair` | 首次无线配对（填 IP / 端口 / 6 位配对码） |
-| `phone_connect` | 连接到 `ip:端口` |
+| `phone_connect` | 连接到明确指定的 `ip:连接端口`；端口取自无线调试主页，不是配对弹窗 |
 | `phone_devices` | 列出所有设备，并可切换当前使用的那台 |
 
 ### 👁 看（3）
@@ -217,7 +231,7 @@ MCP 客户端配置（以通用 stdio 形式为例）：
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `PHONE_ADB` | 自动探测 | adb 可执行文件路径 |
-| `PHONE_SERIAL` | 自动选第一台 | 设备序列号，例如 `192.168.1.98:5555` 或 `emulator-5554` |
+| `PHONE_SERIAL` | 自动选第一台 | 设备序列号，例如 `192.168.1.98:35315` 或 `emulator-5554`；无线端口以手机当前显示为准 |
 | `PHONE_SHOT_DIR` | 系统临时目录 | 截图输出目录 |
 | `PHONE_MACRO_FILE` | `~/.phone-mcp/macros.json` | 宏存储文件 |
 | `PHONE_FFMPEG` | `ffmpeg` | ffmpeg 路径（只有 `video_frames` 需要） |
@@ -263,8 +277,7 @@ MCP 客户端配置（以通用 stdio 形式为例）：
 某些 App 会禁止截屏（`FLAG_SECURE`）。模拟器上一般可以关掉这个限制。
 
 **Q: 无线调试每次重启都要重新配对？**
-不用。配对是一次性的，之后 `phone_connect` 即可。如果端口变了，
-在手机的无线调试页面看新的端口。
+已配对的设备通常不必重新配对。之后调用 `phone_connect` 时仍须显式填写手机**无线调试主页**当前显示的连接端口，不要复用配对弹窗的端口，也不要猜测 5555。如果端口变了，同时更新 `PHONE_SERIAL` 或当前选定的设备地址。
 
 **Q: 能在多个设备之间切换吗？**
 能。`phone_devices` 传 `use` 参数即可切换。
