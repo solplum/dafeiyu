@@ -4021,8 +4021,6 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'dfy-button', style: { marginTop: 8 }, 'aria-controls': conversationAreaId,
                   onClick: () => { setConversationHighlighted(true); conversationArea.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); } }, '查看聊天状态'))
                 : h('p', { className: 'dfy-hint' }, '当前没有可对应的会话详情，无法确认对象、原因或发生时间。请刷新状态后核对；这里不会跳转到无关任务，也不会自动重试。'))) : null),
-        h('nav', { className: 'dfy-home-shortcuts dfy-inline-actions', 'aria-label': '常用入口' },
-          h('span', { className: 'dfy-meta' }, '常用入口'), navButton('查看功能', 'capabilities'), navButton('查看任务', 'background')),
         h('div', { className: 'dfy-home-summary', 'aria-label': '连接状态' },
           h('div', { className: 'dfy-card' }, h('div', { className: 'dfy-titleline' }, h('span', { className: 'dfy-card-label' }, 'QQ'),
             h(HelpTip, { label: 'QQ连接' }, '使用接收小号登录后，已启用的聊天对象就可以通过 QQ 与大肥鱼交流。')),

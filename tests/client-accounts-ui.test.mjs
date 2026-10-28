@@ -746,8 +746,7 @@ test('exception details list each failed identity by its own fixed reason and ti
   await f.flush(); await f.click('查看异常详情');
   const status = f.nodes().find(node => node.props['aria-label'] === '大肥鱼当前状态');
   assert.equal(f.nodes(status).some(node => node.type === 'button' && ['查看功能', '查看任务'].includes(f.text(node))), false);
-  const shortcuts = f.nodes().find(node => node.props['aria-label'] === '常用入口');
-  assert.ok(f.text(shortcuts).includes('查看功能')); assert.ok(f.text(shortcuts).includes('查看任务'));
+  assert.equal(f.nodes().find(node => node.props['aria-label'] === '常用入口'), undefined, 'the shortcut row is gone');
   const details = f.nodes().find(node => node.props['aria-label'] === '异常详情');
   const issues = f.nodes(details).filter(node => node.props.className === 'dfy-home-issue');
   assert.equal(issues.length, 2);

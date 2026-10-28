@@ -77,7 +77,8 @@ function fixture() {
           }
           result = { ok: true, capabilities };
         }
-      } else if (route === 'dependencies') result = { ok: true, dependencies: { busy: false, items: [] } };
+      } else if (route === 'model/status') result = { ok: true, model: { providers: [], currentSelection: null } };
+      else if (route === 'dependencies') result = { ok: true, dependencies: { busy: false, items: [] } };
       else if (route === 'napcat/status') result = { ok: true, napcat: { available: false } };
       else if (route === 'config' || route === 'apply') assert.fail('Unexpected configuration write');
       else assert.fail('Unexpected API: ' + route);
@@ -144,14 +145,16 @@ function fixture() {
     dispose() { for (const instance of instances.values()) for (const hook of instance.hooks) hook?.cleanup?.(); } };
 }
 
-test('overview links to the capability tab and opening only reads the capability snapshot once', async (t) => {
+test('the shortcut row is gone; the capability page opens from the advanced group with one snapshot read', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush();
-  assert.ok(f.button('查看能力'));
+  assert.equal(f.button('查看功能'), undefined, 'the home shortcut row no longer exists');
+  assert.equal(f.nodes().some((node) => node.props['aria-label'] === '常用入口'), false);
   assert.deepEqual(f.calls.map(({ route, method }) => ({ route, method })), [{ route: 'state', method: 'GET' }]);
   const tabs = f.nodes().filter((node) => node.props.role === 'tab').map((node) => f.text(node));
   assert.deepEqual(tabs, ['首页', '她', '聊天', '高级']);
-  await f.click('查看能力');
-  assert.deepEqual(f.calls.map(({ route, method }) => ({ route, method })), [{ route: 'state', method: 'GET' }, { route: 'capabilities', method: 'GET' }]);
+  await f.click('高级'); await f.click('功能');
+  assert.deepEqual(f.calls.map(({ route, method }) => ({ route, method })),
+    [{ route: 'state', method: 'GET' }, { route: 'model/status', method: 'GET' }, { route: 'capabilities', method: 'GET' }]);
   assert.equal(ids.every((id) => Boolean(f.article(id))), true);
   assert.equal(f.nodes().filter((node) => node.type === 'article').length, 11);
   assert.equal(f.text().includes('同一份状态记录'), false, 'explanation is hidden until help opens');
