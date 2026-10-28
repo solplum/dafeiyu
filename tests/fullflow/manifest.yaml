@@ -1,0 +1,39 @@
+# 离线回归清单；不代表真机、真实 QQ 或 DSH 桌面端到端验收。
+name: lzl-dsh 离线回归
+target:
+  platform: cli
+environment:
+  start: manual
+flow:
+  steps:
+    - id: source_checks
+      cli:
+        cmd: ["node", "scripts/check.mjs"]
+        cwd: "../.."
+        timeout_s: 30
+      assert:
+        - { status: 0 }
+        - { text_contains: "离线自检通过" }
+    - id: offline_regressions
+      cli:
+        cmd: ["npm", "test"]
+        cwd: "../.."
+        timeout_s: 60
+      assert:
+        - { status: 0 }
+    - id: offline_companion_demo
+      cli:
+        cmd: ["node", "packages/companion/examples/demo.js"]
+        cwd: "../.."
+        timeout_s: 30
+      assert:
+        - { status: 0 }
+        - { text_contains: "这个 demo 完全离线" }
+    - id: read_only_doctor
+      cli:
+        cmd: ["bash", "scripts/doctor.sh"]
+        cwd: "../.."
+        timeout_s: 30
+      assert:
+        - { status: 0 }
+        - { text_contains: "未验证" }
