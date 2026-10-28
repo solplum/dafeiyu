@@ -8,6 +8,12 @@ yarn.lock
 config.json
 role.md
 data/
+memory/user.md
+memory/timeline.md
+memory/facts.json
+memory/memory-overlay.json
+memory/.memory-write.lock/
+memory/*.tmp
 *.log
 
 # 截图输出
@@ -33,3 +39,6 @@ assets/video/
 *.wav
 *.mov
 *.mkv
+
+# 本地安全扫描产物
+.mimosa/

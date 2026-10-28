@@ -1,5 +1,5 @@
 {
-  "name": "ai-companion-kit",
+  "name": "lzl-dsh",
   "version": "1.0.0",
   "private": true,
   "description": "给 AI 一副身体，和一点人味 —— 会记事的陪聊 + 能控制安卓手机的 MCP",
@@ -11,7 +11,10 @@
     "demo": "node packages/companion/examples/demo.js",
     "check": "node scripts/check.mjs",
     "phone": "node packages/phone-mcp/src/phone-mcp.js",
-    "phone:test": "node packages/phone-mcp/src/phone-mcp.js --selftest"
+    "phone:test": "node packages/phone-mcp/src/phone-mcp.js --selftest",
+    "doctor": "bash scripts/doctor.sh",
+    "install:dsh": "bash scripts/install-dsh.sh",
+    "test": "node --require ./tests/offline-guard.cjs --test"
   },
   "keywords": [
     "ai",
