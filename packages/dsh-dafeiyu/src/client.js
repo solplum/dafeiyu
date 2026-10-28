@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({
 .dfy-panel .dfy-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}.dfy-panel .dfy-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}.dfy-panel .dfy-card{padding:17px 18px;border:1px solid var(--dfy-border);border-radius:13px;min-width:0;background:var(--dfy-surface)}.dfy-panel .dfy-card-label{font-size:12px;color:var(--dfy-muted);margin-bottom:8px}.dfy-panel .dfy-card-value{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600}.dfy-panel .dfy-card-note{font-size:12px;color:var(--dfy-muted);margin-top:6px}.dfy-panel .dfy-good{color:var(--dfy-green)}.dfy-panel .dfy-warn{color:var(--dfy-amber)}.dfy-panel .dfy-neutral{color:var(--dfy-muted)}
 .dfy-panel .dfy-tabs{display:flex;gap:4px;border-bottom:1px solid var(--dfy-border);margin-bottom:22px}.dfy-panel .dfy-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dfy-muted);padding:11px 16px;margin-bottom:-1px;white-space:nowrap}.dfy-panel .dfy-tab[aria-selected=true]{color:var(--dfy-blue);border-bottom-color:var(--dfy-blue);font-weight:600}.dfy-panel .dfy-section{border:1px solid var(--dfy-border);border-radius:14px;padding:20px;margin-bottom:16px}.dfy-panel .dfy-section h3{font-size:15px;font-weight:600;margin-bottom:4px}.dfy-panel .dfy-description{color:var(--dfy-muted);font-size:12px;margin-bottom:17px}.dfy-panel .dfy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;row-gap:17px}.dfy-panel .dfy-field{min-width:0}.dfy-panel .dfy-label{display:flex;align-items:center;gap:7px;font-weight:550;margin-bottom:6px;font-size:13px}.dfy-panel .dfy-field input:not([type=checkbox]),.dfy-panel .dfy-field select{display:block;width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink)}.dfy-panel .dfy-field input:disabled,.dfy-panel .dfy-field select:disabled{background:var(--dfy-soft);opacity:.72}.dfy-panel .dfy-hint{font-size:12px;color:var(--dfy-muted);margin-top:5px;overflow-wrap:anywhere}.dfy-panel .dfy-field-error{font-size:12px;color:#b14545;margin-top:5px}.dfy-panel .dfy-badge{font-size:10px;line-height:1.5;padding:1px 6px;border-radius:5px;background:var(--dfy-soft);color:var(--dfy-muted);font-weight:400;white-space:nowrap}
 .dfy-panel .dfy-toggle{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--dfy-border);cursor:pointer}.dfy-panel .dfy-toggle:last-child{border-bottom:0}.dfy-panel .dfy-toggle-copy{flex:1;min-width:0}.dfy-panel .dfy-toggle-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:550}.dfy-panel .dfy-toggle input{width:17px;height:17px;accent-color:var(--dfy-blue);flex:none;margin:0}.dfy-panel .dfy-tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:12px 0}.dfy-panel .dfy-readonly{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--dfy-border);font-size:13px}.dfy-panel .dfy-readonly:last-child{border-bottom:0}.dfy-panel .dfy-readonly span:last-child{text-align:right;color:var(--dfy-muted)}.dfy-panel .dfy-paths{margin-top:10px}.dfy-panel .dfy-path{padding:10px 0;border-top:1px solid var(--dfy-border)}.dfy-panel .dfy-path span{display:block;font-size:12px;color:var(--dfy-muted);margin-bottom:4px}.dfy-panel .dfy-path code{display:block;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;user-select:text}
-.dfy-panel .dfy-notice{padding:12px 14px;border:1px solid #8cb7d555;border-radius:9px;background:#5095c910;color:var(--dfy-ink);font-size:12px;margin-bottom:14px;overflow-wrap:anywhere}.dfy-panel .dfy-notice.dfy-error{border-color:#c56d6d66;background:#c55a5a0c}.dfy-panel .dfy-notice.dfy-warning{border-color:#c8a05a66;background:#cba1430c}.dfy-panel .dfy-notice ul{margin:7px 0 0;padding-left:18px}.dfy-panel .dfy-link-button{border:0;background:transparent;padding:0;color:var(--dfy-blue);font-size:12px;text-decoration:underline;text-underline-offset:3px}.dfy-panel .dfy-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0 5px;margin-top:22px;border-top:1px solid var(--dfy-border);background:var(--dfy-surface)}.dfy-panel .dfy-footer-note{font-size:12px;color:var(--dfy-muted);max-width:46%}.dfy-panel .dfy-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.dfy-panel .dfy-button{min-height:36px;padding:7px 13px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink);font-size:12px}.dfy-panel .dfy-button:hover:not(:disabled){background:var(--dfy-soft)}.dfy-panel .dfy-button.dfy-primary{background:var(--dfy-blue);border-color:var(--dfy-blue);color:white}.dfy-panel .dfy-button.dfy-primary:hover:not(:disabled){filter:brightness(1.08)}.dfy-panel .dfy-empty{padding:35px 16px;text-align:center;color:var(--dfy-muted)}
+.dfy-panel .dfy-notice{padding:12px 14px;border:1px solid #8cb7d555;border-radius:9px;background:#5095c910;color:var(--dfy-ink);font-size:12px;margin-bottom:14px;overflow-wrap:anywhere}.dfy-panel .dfy-notice.dfy-error{border-color:#c56d6d66;background:#c55a5a0c}.dfy-panel .dfy-notice.dfy-warning{border-color:#c8a05a66;background:#cba1430c}.dfy-panel .dfy-notice ul{margin:7px 0 0;padding-left:18px}.dfy-panel .dfy-link-button{border:0;background:transparent;padding:0;color:var(--dfy-blue);font-size:12px;text-decoration:underline;text-underline-offset:3px}.dfy-panel .dfy-link-button:disabled{color:var(--dfy-muted);text-decoration:none;cursor:not-allowed}.dfy-panel .dfy-sub{margin:18px 0 0}.dfy-panel .dfy-sub h4{font-size:13px;font-weight:600;margin:0 0 8px}.dfy-panel .dfy-sub h5{font-size:12px;font-weight:600;margin:12px 0 6px;color:var(--dfy-muted)}.dfy-panel .dfy-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0 5px;margin-top:22px;border-top:1px solid var(--dfy-border);background:var(--dfy-surface)}.dfy-panel .dfy-footer-note{font-size:12px;color:var(--dfy-muted);max-width:46%}.dfy-panel .dfy-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.dfy-panel .dfy-button{min-height:36px;padding:7px 13px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink);font-size:12px}.dfy-panel .dfy-button:hover:not(:disabled){background:var(--dfy-soft)}.dfy-panel .dfy-button.dfy-primary{background:var(--dfy-blue);border-color:var(--dfy-blue);color:white}.dfy-panel .dfy-button.dfy-primary:hover:not(:disabled){filter:brightness(1.08)}.dfy-panel .dfy-empty{padding:35px 16px;text-align:center;color:var(--dfy-muted)}
 @media(prefers-color-scheme:dark){.dfy-panel{--dfy-ink:var(--dsw-alias-label-primary,#e1e9f3);--dfy-muted:var(--dsw-alias-label-secondary,#9baabd);--dfy-border:var(--dsw-alias-border-l2,#344253);--dfy-surface:var(--dsw-alias-bg-layer-1,#1b2431);--dfy-soft:var(--dsw-alias-bg-layer-2,#263244);--dfy-blue:#75b2e6;--dfy-green:#72c6ac;--dfy-amber:#e1b46e}.dfy-panel .dfy-button.dfy-primary{background:#326fa7;border-color:#326fa7}}
 @media(max-width:640px){.dfy-panel{padding:14px}.dfy-panel .dfy-hero{padding:18px 16px;gap:12px}.dfy-panel .dfy-hero h2{font-size:21px}.dfy-panel .dfy-mark{width:44px;height:44px;font-size:27px}.dfy-panel .dfy-live{display:none}.dfy-panel .dfy-cards{gap:8px}.dfy-panel .dfy-card{padding:12px 10px}.dfy-panel .dfy-card-value{font-size:13px;gap:5px}.dfy-panel .dfy-card-note{font-size:11px}.dfy-panel .dfy-section{padding:16px}.dfy-panel .dfy-grid,.dfy-panel .dfy-tool-grid{grid-template-columns:1fr}.dfy-panel .dfy-tab{padding:10px 12px}.dfy-panel .dfy-footer{align-items:flex-start;flex-direction:column}.dfy-panel .dfy-footer-note{max-width:100%}.dfy-panel .dfy-actions{width:100%}}
 .dfy-panel .dfy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.dfy-panel .dfy-tabs{overflow-x:auto}.dfy-panel [hidden]{display:none!important}.dfy-panel .dfy-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0}.dfy-panel .dfy-inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dfy-panel .dfy-search{display:flex;align-items:flex-end;gap:8px;flex:1;min-width:220px}.dfy-panel .dfy-search .dfy-field{flex:1}.dfy-panel .dfy-search .dfy-button{min-height:38px}.dfy-panel .dfy-meta{font-size:12px;color:var(--dfy-muted);overflow-wrap:anywhere}.dfy-panel .dfy-state-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}.dfy-panel .dfy-state-cell{padding:12px;border:1px solid var(--dfy-border);border-radius:9px;min-width:0}.dfy-panel .dfy-state-cell span{display:block;font-size:11px;color:var(--dfy-muted);margin-bottom:4px}.dfy-panel .dfy-state-cell strong{font-size:13px;font-weight:550}.dfy-panel .dfy-qr{display:flex;gap:20px;align-items:center;margin-top:16px;padding:16px;border:1px solid var(--dfy-border);border-radius:10px}.dfy-panel .dfy-qr img{width:210px;height:210px;object-fit:contain;background:white;border:10px solid white;border-radius:8px}.dfy-panel .dfy-qr-copy{font-size:12px;color:var(--dfy-muted);max-width:300px}.dfy-panel .dfy-gallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}.dfy-panel .dfy-meme{border:1px solid var(--dfy-border);border-radius:10px;overflow:hidden;min-width:0;background:var(--dfy-surface)}.dfy-panel .dfy-thumbnail{display:flex;width:100%;height:136px;align-items:center;justify-content:center;border:0;border-bottom:1px solid var(--dfy-border);padding:8px;background:var(--dfy-soft);color:var(--dfy-muted);font-size:12px}.dfy-panel .dfy-thumbnail img{max-width:100%;max-height:120px;object-fit:contain}.dfy-panel .dfy-meme-copy{padding:10px}.dfy-panel .dfy-meme-title{font-size:12px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dfy-panel .dfy-meme-file{font-size:10px;color:var(--dfy-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.dfy-panel .dfy-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;min-height:17px}.dfy-panel .dfy-preview{margin:14px 0;padding:16px;border:1px solid var(--dfy-border);border-radius:10px;text-align:center;background:var(--dfy-soft)}.dfy-panel .dfy-preview img{display:block;max-width:100%;max-height:420px;object-fit:contain;margin:12px auto}.dfy-panel .dfy-preview figcaption{font-size:12px;overflow-wrap:anywhere}.dfy-panel .dfy-persona{width:100%;min-height:330px;resize:vertical;padding:14px;border:1px solid var(--dfy-border);border-radius:9px;background:var(--dfy-surface);color:var(--dfy-ink);font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,"Microsoft YaHei",monospace;tab-size:2}.dfy-panel .dfy-persona:focus-visible{outline:3px solid #559bd780;outline-offset:3px}.dfy-panel .dfy-persona:read-only{background:var(--dfy-soft)}.dfy-panel .dfy-persona-latest{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:12px/1.7 ui-monospace,monospace;margin:10px 0 0}.dfy-panel .dfy-detail{font-size:12px;color:var(--dfy-muted);margin:12px 0}.dfy-panel .dfy-detail summary{cursor:pointer}
@@ -3249,13 +3249,13 @@ window.__ModuleLoader__.load({
         disabled: busy || cancellingActivity || disabled || mutating && formBlocked,
         onClick: () => { if (!lock.current && !cancelLock.current && live() && (!mutating || !latest.current.writeBlocked)) return handler(); } }, label);
       const recordAct = (action, input = {}) => act(action, { id: selected.id, ...input });
-      return h('section', { className: 'dfy-section', 'aria-label': '生活与成长管理' },
-        h('h3', null, '生活与成长'), h('p', { className: 'dfy-description' }, '近期经历、逐渐形成的习惯、自主活动和可结余的零花时间。开关默认关闭，启用后按所选范围运行。'),
-        h(TokenPanel, { active, onDirtyChange: setTokensDirty, writeBlocked }),
-        h('div', { className: 'dfy-toolbar' }, button('刷新生活记录', () => load(), false, false),
+      return h('div', { 'aria-label': '生活与成长管理' },
+        h(SectionHeading, { title: '生活与成长', help: '近期经历、逐渐形成的习惯、自主活动和可结余的零花时间。开关默认关闭，启用后按所选范围运行。' },
+          button('刷新生活记录', () => load(), false, false),
           dirty ? button('撤销未保存修改', resetDraft, !settingsDirty && !experienceDirty && !bonusDraft, false) : null,
           data ? h('button', { type: 'button', className: 'dfy-button', disabled: cancelBlocked || cancellingActivity || !data.autonomy.running && !checkingNow,
             onClick: cancelActivity }, cancellingActivity ? '正在停止自主活动…' : '停止当前自主活动') : null),
+        h(TokenPanel, { active, onDirtyChange: setTokensDirty, writeBlocked }),
         dirty ? h('p', { className: 'dfy-hint', role: 'status' }, bonusUnresolved
           ? '本次发放结果需要核对。刷新只读取记录，不会重新发放。'
           : '有未保存的修改，请点击所在分区的保存按钮。刷新记录会保留输入；撤销只影响未保存的修改。') : null,
@@ -3263,19 +3263,21 @@ window.__ModuleLoader__.load({
         notice ? h('div', { role: 'status', className: 'dfy-notice' }, notice) : null,
         data?.memory?.error ? h('div', { role: 'alert', className: 'dfy-notice dfy-warning' }, data.memory.error.message) : null,
         data && draft ? h(React.Fragment, null,
-          h('section', { className: 'dfy-section' }, h('h3', null, '记忆与成长设置'),
+          h('section', { className: 'dfy-section' },
+            h(SectionHeading, { title: '记忆与成长设置' },
+              button('保存记忆与成长设置', () => act('memory-policy', { patch: draft.memory }, 'memory'))),
             check('memory', 'learningEnabled', '自动整理日常聊天'), check('memory', 'growthEnabled', '随长期交流积累相处习惯'),
             h('div', { className: 'dfy-grid' }, number('memory', 'detailedDays', '普通经历保留细节的天数'), number('memory', 'summaryDays', '普通概要参与主动回忆的天数')),
             h('p', { className: 'dfy-hint' }, '固定记忆和未完成约定不随时间淡化。读取不会强化记忆，回忆不清时不得编造。'),
-            sectionErrors.memory ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.memory) : null,
-            button('保存记忆与成长设置', () => act('memory-policy', { patch: draft.memory }, 'memory'))),
-          h('section', { className: 'dfy-section' }, h('h3', null, '娱乐时间钱包'),
+            sectionErrors.memory ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.memory) : null),
+          h('section', { className: 'dfy-section' },
+            h(SectionHeading, { title: '娱乐时间钱包' },
+              button('保存时间额度', () => act('wallet-policy', { patch: { enabled: draft.wallet.enabled, dailySeconds: draft.wallet.dailySeconds, monthlySeconds: draft.wallet.monthlySeconds } }, 'wallet'))),
             h('div', { className: 'dfy-state-grid' }, h('div', { className: 'dfy-state-cell' }, '今日基础剩余：', Math.floor(data.autonomy.wallet.dailyRemainingSeconds / 60), ' 分钟'),
               h('div', { className: 'dfy-state-cell' }, '零花余额：', (data.autonomy.wallet.balance / 60).toFixed(1), ' 分钟')),
             check('wallet', 'enabled', '启用娱乐时间额度'), h('div', { className: 'dfy-grid' }, number('wallet', 'dailySeconds', '每日基础分钟', 60), number('wallet', 'monthlySeconds', '每月零花分钟', 60)),
             h('p', { className: 'dfy-hint' }, '每日基础时间不结转；每月零花时间可一直累积。加载、暂停和离线不计娱乐时间。用户交办任务不从此钱包扣除。时区：Asia/Shanghai。'),
             sectionErrors.wallet ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.wallet) : null,
-            button('保存时间额度', () => act('wallet-policy', { patch: { enabled: draft.wallet.enabled, dailySeconds: draft.wallet.dailySeconds, monthlySeconds: draft.wallet.monthlySeconds } }, 'wallet')),
             h('div', { style: { marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(127,127,127,.18)' } },
             h('h4', null, '额外零花时间'),
             h('label', { className: 'dfy-field', style: { display: 'block' } }, '额外发放分钟', h('input', { type: 'number', min: 1 / 60, max: 525600, step: 'any',
@@ -3292,9 +3294,11 @@ window.__ModuleLoader__.load({
             bonusReceipt?.phase === 'unknown' ? h('p', { className: 'dfy-hint' }, '请先刷新核对到账记录。“继续本次发放”只确认原来这一笔，不会额外增加另一笔。') : null),
             h('details', null, h('summary', null, '时间账本'), data.autonomy.wallet.transactions.slice().reverse().map((row) => h('p', { key: row.id, className: 'dfy-meta' },
               ({ monthly: '每月到账', bonus: '额外发放', spend: '娱乐使用' }[row.kind] || row.kind) + ' · ' + (row.seconds / 60).toFixed(1) + ' 分钟' + (row.month ? ' · ' + row.month : ''))))),
-          h('section', { className: 'dfy-section' }, h('h3', null, '自主活动范围'),
+          h('section', { className: 'dfy-section' },
+            h(SectionHeading, { title: '自主活动范围' },
+              button('保存自主活动范围', () => act('autonomy-policy', { patch: draft.autonomy }, 'autonomy'))),
             check('autonomy', 'enabled', '启用自主活动'),
-            h('section', { className: 'dfy-section', 'aria-label': '联系谁' }, h('h4', null, '联系谁'),
+            h('div', { className: 'dfy-sub', 'aria-label': '联系谁' }, h('h4', null, '联系谁'),
               h('p', { className: 'dfy-hint' }, '只会联系下方已勾选的已启用聊天对象，按各账号当前身份分别交流。'),
               accounts.filter((account) => account.enabled).length ? accounts.filter((account) => account.enabled).map((account) => {
                 const scope = { accountId: account.qq, identityId: account.activeIdentityId }, included = draft.autonomy.targets.some((item) => equal(item, scope));
@@ -3311,7 +3315,7 @@ window.__ModuleLoader__.load({
               button('管理聊天对象', manageAccounts, !onManageAccounts || dirty || tokensDirty),
               dirty || tokensDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销生活页未保存的修改，再管理聊天对象。')
                 : formBlocked ? h('p', { className: 'dfy-hint' }, '请先处理其他页面的未保存修改或等待当前操作结束，再管理聊天对象。') : null),
-            h('section', { className: 'dfy-section', 'aria-label': '允许做什么' }, h('h4', null, '允许做什么'),
+            h('div', { className: 'dfy-sub', 'aria-label': '允许做什么' }, h('h4', null, '允许做什么'),
               h('h5', null, '主动聊天'), check('autonomy', 'proactive', '允许主动找选定账号聊天'),
               check('autonomy', 'greetingEnabled', '没有话题时，允许首次主动问候'),
               h('p', { className: 'dfy-hint' }, '首次问候默认关闭；开启后，仅对已选中的主要使用者当前身份生效，仍受免打扰、间隔和次数限制，不会向其他账号首次问候。保存设置不会立即发送消息。'),
@@ -3337,20 +3341,19 @@ window.__ModuleLoader__.load({
                   ? h('p', { className: 'dfy-hint' }, '需同时开启自主活动、自主浏览并勾选抖音，以上许可才会生效。') : null,
                 h('p', { className: 'dfy-hint' }, '关闭任一互动许可并保存，会停止当前抖音自主活动并取消后续互动；已发送的内容不会自动撤回。执行或发送结果未确认时会暂停，不会自动重试。'),
                 formBlocked ? h('button', { type: 'button', className: 'dfy-button', disabled: busy || !interactionRevocations(), onClick: revokeInteractions }, '仅保存关闭的抖音互动') : null)),
-            h('section', { className: 'dfy-section', 'aria-label': '免打扰' }, h('h4', null, '免打扰'),
+            h('div', { className: 'dfy-sub', 'aria-label': '免打扰' }, h('h4', null, '免打扰'),
               check('autonomy', 'quietEnabled', '启用免打扰时段'),
               h('div', { className: 'dfy-grid' }, hour('quietStart'), hour('quietEnd')),
               h('p', { className: 'dfy-hint' }, '按北京时间选择整点，支持跨过午夜。关闭后保留所选时段；开启时开始与结束不能相同。')),
-            h('section', { className: 'dfy-section', 'aria-label': '频率与额度' }, h('h4', null, '频率与额度'),
+            h('div', { className: 'dfy-sub', 'aria-label': '频率与额度' }, h('h4', null, '频率与额度'),
               h('div', { className: 'dfy-grid' }, number('autonomy', 'maxContacts', '每个聊天身份每日主动联系上限'),
                 number('autonomy', 'minGapMinutes', '主动聊天最小间隔分钟'), number('autonomy', 'maxActivities', '每日自主活动总次数上限')),
               h('p', { className: 'dfy-hint' }, '聊天次数按账号和身份分别统计当日已送达消息；活动总次数按当日已创建的活动统计，待计划活动不计入。娱乐时间和 Token 额度分别在上方管理，不互相换算。')),
             sectionErrors.autonomy ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.autonomy) : null,
-            button('保存自主活动范围', () => act('autonomy-policy', { patch: draft.autonomy }, 'autonomy')),
             h('p', { className: 'dfy-hint' }, '检查并开始一次会创建新的自主活动，按已保存的范围、Token 和娱乐时间额度记账；不会提前或重做旧计划。不会替你开启首次问候；问候仅在你已单独允许时发送。'),
             button(checkingNow ? '正在检查并进行一次活动…' : '检查并开始一次活动', () => act('autonomy-check-now'), !canCheckNow()),
             autonomyDraftDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销自主活动范围草稿，再开始一次新活动。') : null,
-            h('section', { className: 'dfy-section', 'aria-label': '当前等待原因' }, h('h4', null, '当前等待原因'),
+            h('div', { className: 'dfy-sub', 'aria-label': '当前等待原因' }, h('h4', null, '当前等待原因'),
               h('p', { className: 'dfy-meta' }, '以下状态按已保存设置判断：', data.preview.reason),
               !equal(draft.autonomy, baseline.current.autonomy) ? h('p', { className: 'dfy-hint', role: 'status' }, '自主活动设置有未保存修改；上方等待原因尚未采用这些修改。') : null,
               formatTime(data.preview.nextCheckAt) ? h('p', { className: 'dfy-meta' }, '下次检查：', formatTime(data.preview.nextCheckAt)) : null,
@@ -3358,7 +3361,7 @@ window.__ModuleLoader__.load({
             data.autonomy.activities.slice().reverse().slice(0, 10).map((row) => h('p', { key: row.id, className: 'dfy-meta' }, row.kind === 'chat' ? '主动聊天' : '自主浏览', ' · ', ({ scheduled: '等待合适时机', running: '进行中', completed: '已完成', failed: '失败', cancelled: '已取消', unknown: '结果待核实', skipped: '已跳过', interrupted: '已核实停止' }[row.status] || row.status), ' · ', row.reason,
               row.status === 'scheduled' ? ' · 计划时间 ' + new Date(row.dueAt).toLocaleString() : '',
               row.status === 'unknown' ? button('确认旧活动已停止，解除挂起', () => act('acknowledge', { id: row.id, confirmedStopped: true })) : null))),
-          h('section', { className: 'dfy-section', 'aria-label': '最近聊过的事' }, h('h3', null, '最近聊过的事'),
+          h('section', { className: 'dfy-section', 'aria-label': '最近聊过的事' }, h(SectionHeading, { title: '最近聊过的事' }),
             h('p', { className: 'dfy-hint' }, '这里显示她最近记下的聊天片段。普通旧事逐渐淡化，固定事项和未完成约定保留。长期资料可在“记忆”页管理。'),
             data.memory.total > 0 || appliedQuery ? h('details', null, h('summary', null, '查找记录'),
               h('label', { className: 'dfy-field' }, '搜索经历', h('input', { value: query, maxLength: 200, disabled: busy || experienceDirty,
@@ -3370,7 +3373,7 @@ window.__ModuleLoader__.load({
               : data.memory.policy.learningEnabled ? '还没有记录。自动整理已开启，接下来的 QQ 聊天会逐步记在这里，不会自动补录旧聊天。'
                 : '还没有记录。开启上方的“自动整理日常聊天”后，新的 QQ 聊天会逐步记在这里。')
               : h('p', { className: 'dfy-meta' }, appliedQuery ? '找到的记录' : '最近的记录', ' · 共 ', data.memory.total, ' 条'),
-            data.memory.items.map((row) => h('div', { key: row.id, className: 'dfy-section' }, h('strong', null, row.summary),
+            data.memory.items.map((row) => h('div', { key: row.id, className: 'dfy-suite-component' }, h('strong', null, row.summary),
               h('p', { className: 'dfy-meta' }, row.scope.accountId, ' / ', row.scope.identityId, ' · ', row.at, ' · ', ({ clear: '清晰', summary: '概要', faded: '已淡化' }[row.clarity]), row.pinned ? ' · 固定保留' : '', row.pending ? ' · 未完成约定' : '', row.status === 'inactive' ? ' · 已停用' : ''),
               button('查看与管理这条经历', () => { setSelected(row); setEditText(row.detail); setDeleteChecked(false); }, experienceDirty, false))),
             data.memory.total > data.memory.limit || data.memory.offset > 0 ? h('div', { className: 'dfy-inline-actions' },
@@ -3387,8 +3390,8 @@ window.__ModuleLoader__.load({
               h('label', null, h('input', { type: 'checkbox', checked: deleteChecked, disabled: busy || formBlocked || experienceConflict,
                 onChange: (event) => { if (!lock.current && live() && !latest.current.writeBlocked) setDeleteChecked(event.target.checked); } }), ' 确认删除此条受管记忆、摘要与相关成长；DSH聊天历史及外部备份仍保留'),
               button('删除这条生活记忆', () => recordAct('delete'), experienceConflict || !deleteChecked)) : null),
-          h('section', { className: 'dfy-section' }, h('h3', null, '相处习惯的成长记录'),
-            data.memory.growth.length ? data.memory.growth.map((row) => h('div', { key: row.id, className: 'dfy-section' },
+          h('section', { className: 'dfy-section' }, h(SectionHeading, { title: '相处习惯的成长记录' }),
+            data.memory.growth.length ? data.memory.growth.map((row) => h('div', { key: row.id, className: 'dfy-suite-component' },
               h('strong', null, row.slot + '：' + ({ concise: '简短', detailed: '详细', direct: '直接坦诚', gentle: '温和', playful: '适度玩笑', serious: '认真表达' }[row.value] || row.value)), h('p', { className: 'dfy-meta' }, row.scope.accountId + ' / ' + row.scope.identityId + ' · ' + ({ candidate: '正在积累', applied: '已生效', reverted: '已撤销' }[row.status] || row.status) + ' · 依据 ' + row.evidence.length + ' 条交流'),
               h('details', null, h('summary', null, '查看依据'), (row.evidenceDetails || []).map((item) => h('p', { key: item.id, className: 'dfy-meta' }, item.at + ' · ' + item.quote))),
               row.status === 'candidate' ? button('确认这项相处习惯', () => act('growth-approve', { id: row.id })) : null,
@@ -3429,6 +3432,12 @@ window.__ModuleLoader__.load({
         finally { lock.current = false; if (api.alive.current) setBusy(''); }
       }
       useEffect(() => { if (active && !snapshot) load(0); }, [active]);
+      // 筛选条件变化即自动检索（300ms 防抖），不再要求点击单独的筛选按钮。
+      useEffect(() => {
+        if (!active || !snapshot || lock.current) return;
+        const timer = setTimeout(() => { if (!lock.current) load(0); }, 300);
+        return () => clearTimeout(timer);
+      }, [filters]);
       function open(item) {
         if (dirty) { setNotice('当前纠正草稿已保留，请先保存或明确放弃草稿。'); return; }
         setSelected(item); setDraft(values(item)); setBase(values(item)); setRevision(snapshot.revision); setFailure(null); setNotice('');
@@ -3487,23 +3496,17 @@ window.__ModuleLoader__.load({
           try { const value = await api.call('memory/resume-delete', 'POST', { confirmed: true }); setFailure(null); setNotice(value.memory.note); }
           catch (error) { setFailure(error); } finally { lock.current = false; setBusy(''); }
         } }, '确认完成中断的记忆删除（不可撤销）') : null,
-        h('div', { className: 'dfy-grid' },
-          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-query' }, '搜索记忆'),
+        h('div', { className: 'dfy-toolbar', style: { marginTop: 2 } },
+          h('div', { className: 'dfy-field', style: { flex: 1, minWidth: 180 } }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-query' }, '搜索记忆'),
             h('input', { id: editorId.current + '-query', type: 'text', value: filters.query, maxLength: 200, disabled: Boolean(busy) || dirty,
-              onChange: (event) => setFilters((previous) => ({ ...previous, query: event.target.value })) })),
-          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-status' }, '状态'),
-            h('select', { id: editorId.current + '-filter-status', value: filters.status, disabled: Boolean(busy) || dirty,
-              onChange: (event) => setFilters((previous) => ({ ...previous, status: event.target.value })) },
-              [['all', '全部'], ['active', '已记住'], ['forgotten', '不再记住'], ['unconfirmed', '待确认']].map(([value, name]) => h('option', { value, key: value }, name))))),
-        h(Advanced, { title: filters.kind !== 'all' || filters.scope !== 'all' ? '更多筛选 · 已设置' : '更多筛选' },
-          h('div', { className: 'dfy-grid' }, ...[['kind', '类型', [['all', '全部'], ['fact', '事实'], ['event', '事件']]],
-            ['scope', '适用范围', [['all', '全部'], ['account', '账号'], ['identity', '身份']]]].map(([key, label, options]) =>
-            h('div', { className: 'dfy-field', key }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-' + key }, label),
-              h('select', { id: editorId.current + '-filter-' + key, value: filters[key], disabled: Boolean(busy) || dirty,
-                onChange: (event) => setFilters((previous) => ({ ...previous, [key]: event.target.value })) },
-              options.map(([value, name]) => h('option', { value, key: value }, name))))))),
-        h('div', { className: 'dfy-inline-actions', style: { marginTop: 12 } },
-          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || dirty, onClick: () => load(0) }, '筛选记忆')),
+              placeholder: '改完自动检索', onChange: (event) => setFilters((previous) => ({ ...previous, query: event.target.value })) })),
+          ...[['status', '状态', [['all', '全部'], ['active', '已记住'], ['forgotten', '不再记住'], ['unconfirmed', '待确认']]],
+            ['kind', '类型', [['all', '全部'], ['fact', '事实'], ['event', '事件']]],
+            ['scope', '范围', [['all', '全部'], ['account', '账号'], ['identity', '身份']]]].map(([key, label, options]) =>
+          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-' + key }, label),
+            h('select', { id: editorId.current + '-filter-' + key, value: filters[key], disabled: Boolean(busy) || dirty,
+              onChange: (event) => setFilters((previous) => ({ ...previous, [key]: event.target.value })) },
+              options.map(([value, name]) => h('option', { value, key: value }, name)))))),
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert', style: { marginTop: 12 } }, failure.code === 'CONFLICT'
           ? '记忆已被其他操作修改。草稿已保留，请读取最新记忆，再核对采用。' : resourceError(failure)) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status', style: { marginTop: 12 } }, notice) : null,

@@ -13,6 +13,7 @@ memory/timeline.md
 memory/facts.json
 memory/memory-overlay.json
 memory/.memory-write.lock/
+memory/life/
 memory/*.tmp
 *.log
 

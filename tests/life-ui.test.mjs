@@ -54,13 +54,22 @@ function fixture(t, options = {}) {
   const source = fs.readFileSync(new URL('../packages/dsh-dafeiyu/src/client.js', import.meta.url), 'utf8');
   const start = source.indexOf('    function LifePanel('), end = source.indexOf('    function MemoryPanel(', start);
   const Component = vm.runInNewContext('(' + source.slice(start, end).trim() + ')', { React, ...React, h: React.createElement, TokenPanel: () => null,
+    SectionHeading: ({ title, children }) => ({ type: 'div', props: { className: 'dfy-section-heading', children: [title, ...(children || [])] } }),
     equal: (a, b) => JSON.stringify(a) === JSON.stringify(b), usePanelApi: () => api, URLSearchParams, AbortController,
     crypto: { randomUUID: () => '00112233-4455-4677-8899-' + (++serial).toString().padStart(12, '0') } });
   const flatten = (node) => node == null || node === false ? [] : typeof node === 'object' ? [node, ...(node.props?.children || []).flatMap(flatten)] : [];
   const content = (node) => node == null || node === false ? '' : typeof node === 'object' ? (node.props?.children || []).map(content).join('') : String(node);
+  // Mini renderer must instantiate function components like real React,
+  // otherwise h(SomeComponent) elements only expose their spread children.
+  const resolve = (node) => {
+    if (node == null || typeof node !== 'object') return node;
+    if (typeof node.type === 'function') return resolve(node.type(node.props));
+    const children = node.props?.children;
+    return { ...node, props: { ...node.props, children: Array.isArray(children) ? children.map(resolve) : children } };
+  };
   async function flush() { for (let round = 0; round < 20; round++) {
     dirty = false; index = 0; effects = [];
-    tree = Component(props);
+    tree = resolve(Component(props));
     for (const effect of effects) effect();
     await new Promise((resolve) => setImmediate(resolve)); if (!dirty) break;
   } }
@@ -86,7 +95,9 @@ function fixture(t, options = {}) {
     async input(label, value) { const input = findInput(label); await input.props.onChange({ target: { value, checked: value } }); await flush(); },
     inputNode: findInput, value: (label) => findInput(label).props.value, checked: (label) => findInput(label).props.checked,
     nodes: () => flatten(tree), textOf: content,
-    section: (label) => flatten(tree).find((node) => node.type === 'section' && node.props.children.some((child) => child?.type === 'h3' && content(child) === label)),
+    section: (label) => flatten(tree).find((node) => node.type === 'section' && node.props.children.some((child) =>
+      child?.type === 'h3' && content(child) === label
+      || child?.type === 'div' && child.props?.className === 'dfy-section-heading' && child.props.children[0] === label)),
     details: (label) => flatten(tree).find((node) => node.type === 'details' && node.props.children.some((child) => child?.type === 'summary' && content(child) === label)),
     recordTitles: () => flatten(tree).filter((node) => node.type === 'strong').map(content),
     alerts: () => flatten(tree).filter((node) => node.props?.role === 'alert').map(content).join('\n'), button: findButton };
@@ -667,7 +678,8 @@ test('autonomy settings group enabled contacts by current identity and keep owne
     { qq: '40004', name: '未启用账号', enabled: false, activeIdentityId: 'default', identities: [{ id: 'default', name: '隐藏身份' }] },
   ];
   const f = fixture(t, { accounts, ownerQq: '20002', onManageAccounts() {} }); await f.flush();
-  const groups = f.nodes().filter((node) => node.type === 'section').map((node) => node.props['aria-label']).filter(Boolean);
+  const groups = f.nodes().filter((node) => node.type === 'div' && node.props.className === 'dfy-sub')
+    .map((node) => node.props['aria-label']).filter(Boolean);
   assert.deepEqual(groups.filter((label) => ['联系谁', '允许做什么', '免打扰', '频率与额度', '当前等待原因'].includes(label)),
     ['联系谁', '允许做什么', '免打扰', '频率与额度', '当前等待原因']);
   assert.match(f.text, /甲 · 20002 · 老大和小弟主要使用者（配置）/);
