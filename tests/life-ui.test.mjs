@@ -18,7 +18,7 @@ function fixture(t, options = {}) {
   t.after(() => engine.dispose()); const runtime = { lifeMemory: memory, autonomy: engine };
   let hooks = [], index = 0, effects = [], dirty = false, tree, rootDirty = false, failure = false;
   let afterCommitFailure = false, failReadback = false, failNextRead = false, readGate, writeGate, serial = 0, previewOverride = null;
-  const props = { active: true, writeBlocked: false, accounts: [{ qq: scope.accountId, name: '测试账号', enabled: true, activeIdentityId: scope.identityId }],
+  const props = { active: true, refreshKey: 0, writeBlocked: false, accounts: [{ qq: scope.accountId, name: '测试账号', enabled: true, activeIdentityId: scope.identityId }],
     onDirtyChange: (value) => { rootDirty = value; }, ...options };
   const React = { Fragment: Symbol('fragment'), createElement: (type, props, ...children) => ({ type, props: { ...props, children: children.flat(Infinity) } }),
     useState(initial) { const slot = index++; hooks[slot] ||= { value: typeof initial === 'function' ? initial() : initial };
@@ -67,6 +67,7 @@ function fixture(t, options = {}) {
     const children = node.props?.children;
     return { ...node, props: { ...node.props, children: Array.isArray(children) ? children.map(resolve) : children } };
   };
+  async function reload() { props.refreshKey++; await flush(); }
   async function flush() { for (let round = 0; round < 20; round++) {
     dirty = false; index = 0; effects = [];
     tree = resolve(Component(props));
@@ -94,7 +95,7 @@ function fixture(t, options = {}) {
     async invoke(node) { assert.ok(node); await node.props.onClick(); await flush(); },
     async input(label, value) { const input = findInput(label); await input.props.onChange({ target: { value, checked: value } }); await flush(); },
     inputNode: findInput, value: (label) => findInput(label).props.value, checked: (label) => findInput(label).props.checked,
-    nodes: () => flatten(tree), textOf: content,
+    nodes: () => flatten(tree), textOf: content, reload,
     section: (label) => flatten(tree).find((node) => node.type === 'section' && node.props.children.some((child) =>
       child?.type === 'h3' && content(child) === label
       || child?.type === 'div' && child.props?.className === 'dfy-section-heading' && child.props.children[0] === label)),
@@ -135,9 +136,9 @@ test('actual life UI places independent Douyin interaction switches in advanced 
 test('actual life interaction drafts survive refresh and external grant changes refuse a stale save', async t => {
   const f = fixture(t); await f.flush();
   await f.input('允许自主关注', true);
-  await f.click('刷新生活记录'); assert.equal(f.checked('允许自主关注'), true);
+  await f.reload(); assert.equal(f.checked('允许自主关注'), true);
   f.engine.configure({ douyinInteractions: { comment: true } }, { authorize: () => true });
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.checked('允许自主关注'), true);
   const before = f.posts.length; await f.invoke(f.button('保存自主活动范围'));
   assert.equal(f.posts.length, before);
@@ -149,7 +150,7 @@ test('actual life interaction drafts survive refresh and external grant changes 
 test('a busy runtime permits only saved interaction revocations and preserves unrelated drafts', async t => {
   const f = fixture(t); await f.flush();
   f.engine.configure({ douyinInteractions: { like: true, follow: true } }, { authorize: () => true });
-  await f.click('刷新生活记录');
+  await f.reload();
   await f.input('每日自主活动总次数上限', '7');
   await f.setProps({ writeBlocked: true, revokeBlocked: false });
   assert.equal(f.inputNode('允许自主点赞').props.disabled, false);
@@ -176,7 +177,7 @@ test('actual life UI preserves failed drafts and supports inspect, correct and e
   await f.input('自动整理日常聊天', true); f.fail(true); await f.click('保存记忆与成长设置'); assert.match(f.text, /(?:草稿|输入)仍保留/); assert.equal(f.rootDirty, true);
   f.fail(false); await f.click('保存记忆与成长设置');
   f.memory.capture({ phase: 'received', messageId: '1', selfId: '10001', scope: f.scope, userText: 'UI_DELETE_SECRET_CANARY' }, { authorize: () => true });
-  await f.click('刷新生活记录'); await f.click('查看与管理这条经历'); await f.input('纠正经历内容', '用户纠正后的内容');
+  await f.reload(); await f.click('查看与管理这条经历'); await f.input('纠正经历内容', '用户纠正后的内容');
   await f.click('保存经历纠正'); assert.equal(f.memory.snapshot().items[0].detail, '用户纠正后的内容');
   await f.click('查看与管理这条经历'); assert.equal(f.button('删除这条生活记忆').props.disabled, true);
   await f.input('确认删除此条受管记忆', true); await f.click('删除这条生活记忆'); assert.equal(f.memory.snapshot().total, 0);
@@ -283,7 +284,7 @@ test('refresh retains all unsaved life drafts and explicit undo restores the lat
   await f.input('普通经历保留细节的天数', '8'); await f.input('每日基础分钟', '25');
   await f.input('免打扰开始时间', '21'); await f.input('额外发放分钟', '5');
   const before = f.posts.length;
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.value('普通经历保留细节的天数'), '8'); assert.equal(f.value('每日基础分钟'), '25');
   assert.equal(f.value('免打扰开始时间'), '21'); assert.equal(f.value('额外发放分钟'), '5');
   assert.equal(f.rootDirty, true); assert.equal(f.posts.length, before, 'refresh is read only');
@@ -301,7 +302,7 @@ test('a successful time bonus retains its amount and needs an explicit new grant
   assert.equal(f.uuidCount, 1); const first = f.posts.at(-1).payload.input.requestId;
   const send = f.button('已发放'); assert.ok(send); assert.equal(send.props.disabled, true);
   await f.invoke(send); assert.equal(f.posts.length, 1); assert.equal(f.engine.wallet.snapshot().balance, 300);
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.value('额外发放分钟'), '5'); assert.equal(f.uuidCount, 1);
   assert.equal(f.button('已发放').props.disabled, true);
   await f.click('再发一笔'); assert.equal(f.value('额外发放分钟'), '5');
@@ -317,7 +318,7 @@ test('a failed bonus retains amount and UUID, and a same-request retry cannot mi
   assert.equal(f.value('额外发放分钟'), '7'); assert.equal(f.uuidCount, 1);
   assert.equal(f.engine.wallet.snapshot().balance, 0); assert.match(f.text, /(?:草稿|输入)仍保留|保留.*草稿/);
   const first = f.posts[0].payload.input.requestId;
-  f.fail(false); await f.click('刷新生活记录');
+  f.fail(false); await f.reload();
   assert.equal(f.value('额外发放分钟'), '7');
   await f.click('继续本次发放');
   assert.equal(f.posts[1].payload.input.requestId, first); assert.equal(f.uuidCount, 1);
@@ -331,7 +332,7 @@ test('refresh verifies a bonus committed before a lost response and does not sub
   await f.click('发放零花时间');
   assert.equal(f.engine.wallet.snapshot().balance, 540); assert.equal(f.value('额外发放分钟'), '9');
   const first = f.posts[0].payload.input.requestId; assert.equal(f.uuidCount, 1);
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.posts.length, 1); assert.equal(f.value('额外发放分钟'), '9'); assert.equal(f.uuidCount, 1);
   assert.match(f.text, /(?:已发放|发放成功|已到账|已核对)[^。\n]*9[^。\n]*分钟/);
   assert.equal(f.button('已发放').props.disabled, true);
@@ -404,9 +405,9 @@ test('a read-only life snapshot blocks all writes and stale handlers while refre
   await f.input('普通经历保留细节的天数', '8'); await f.input('每日基础分钟', '20');
   await f.input('免打扰开始时间', '22'); await f.input('额外发放分钟', '5');
   const labels = ['保存记忆与成长设置', '保存时间额度', '保存自主活动范围', '发放零花时间'];
-  const stale = labels.map(f.button); f.readOnly(true); await f.click('刷新生活记录');
+  const stale = labels.map(f.button); f.readOnly(true); await f.reload();
   assert.match(f.alerts(), /当前只读/);
-  assert.equal(f.button('刷新生活记录').props.disabled, false);
+  assert.equal(f.button('刷新生活记录'), undefined, 'the standalone refresh button is gone; the global refresh drives reloads');
   assert.equal(f.value('普通经历保留细节的天数'), '8'); assert.equal(f.value('每日基础分钟'), '20');
   for (const label of labels) { assert.equal(f.button(label).props.disabled, true, label); await f.invoke(f.button(label)); }
   for (const node of stale) await f.invoke(node);
@@ -418,9 +419,9 @@ test('refreshing records also preserves the currently edited experience and its 
   const f = fixture(t); await f.flush();
   await f.input('自动整理日常聊天', true); await f.click('保存记忆与成长设置');
   f.memory.capture({ phase: 'received', messageId: '2', selfId: '10001', scope: f.scope, userText: 'LIFE_EDIT_REFRESH_CANARY' }, { authorize: () => true });
-  await f.click('刷新生活记录'); await f.click('查看与管理这条经历');
+  await f.reload(); await f.click('查看与管理这条经历');
   await f.input('纠正经历内容', '刷新后仍应保留的修改'); await f.input('每日基础分钟', '15');
-  const before = f.posts.length; await f.click('刷新生活记录');
+  const before = f.posts.length; await f.reload();
   assert.equal(f.value('纠正经历内容'), '刷新后仍应保留的修改'); assert.equal(f.value('每日基础分钟'), '15');
   assert.equal(f.rootDirty, true); assert.equal(f.posts.length, before);
   await f.click('保存经历纠正');
@@ -464,7 +465,7 @@ test('a refreshed external experience change preserves the edit and blocks every
     const stale = labels.map(f.button);
     for (let i = 0; i < labels.length; i++) assert.equal(stale[i].props.disabled, false, labels[i] + ' starts usable');
     change(f, id); const saved = fs.readFileSync(f.memory.store.file, 'utf8');
-    await f.click('刷新生活记录');
+    await f.reload();
     assert.equal(f.value('纠正经历内容'), '尚未保存的本地修改'); assert.equal(f.rootDirty, true);
     assert.match(f.alerts(), /当前记录已变化或暂时无法核对/);
     assert.equal(f.inputNode('确认删除此条受管记忆').props.disabled, true);
@@ -488,7 +489,7 @@ test('unrelated Token and policy updates refresh the CAS revision without confli
   f.engine.wallet.configure({ dailySeconds: 1200 }, { authorize });
   f.engine.configure({ quietStart: 20 }, { authorize });
   const refreshedRevision = f.memory.store.read().revision;
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.value('纠正经历内容'), '在其他账本更新后保存的本地纠正');
   assert.equal(f.value('普通概要参与主动回忆的天数'), '31'); assert.equal(f.value('每日基础分钟'), '20');
   assert.equal(f.value('免打扰开始时间'), '20'); assert.doesNotMatch(f.alerts(), /当前记录已变化或暂时无法核对/);
@@ -508,7 +509,7 @@ test('busy runtime blocks policy and bonus writes while allowing a separately au
   const controller = new AbortController(); let stops = 0;
   f.engine.active = { controller, promise: Promise.resolve() };
   controller.signal.addEventListener('abort', () => { stops++; f.engine.active = null; }, { once: true });
-  await f.click('刷新生活记录');
+  await f.reload();
   const staleStop = f.button('停止当前自主活动');
   await f.simulateGate(true); await f.simulateCancelGate(true);
   assert.equal(f.button('停止当前自主活动').props.disabled, true);
@@ -522,7 +523,8 @@ test('busy runtime blocks policy and bonus writes while allowing a separately au
   assert.equal(f.button('停止当前自主活动').props.disabled, false);
   await f.click('停止当前自主活动');
   assert.equal(stops, 1); assert.equal(f.posts.length, 1); assert.equal(f.posts[0].payload.action, 'cancel');
-  assert.equal(f.engine.snapshot().running, false); assert.equal(f.button('停止当前自主活动').props.disabled, true);
+  assert.equal(f.engine.snapshot().running, false);
+  assert.equal(f.button('停止当前自主活动'), undefined, 'the stop control disappears once no activity is running');
   assert.equal(f.value('普通经历保留细节的天数'), '8'); assert.equal(f.value('每日基础分钟'), '20');
   assert.equal(f.value('免打扰开始时间'), '22'); assert.equal(f.value('额外发放分钟'), '5');
   assert.equal(f.rootDirty, true); assert.equal(f.engine.wallet.snapshot().balance, 0);
@@ -537,7 +539,7 @@ test('matching durable bonus proof confirms an old grant beyond the returned tra
   // owner API's last-100 view, while its durable deduplication record remains.
   for (let i = 0; i < 101; i++) f.engine.wallet.add({ requestId: 'fixture-other-grant-' + i, seconds: 60 }, { authorize: () => true });
   const before = f.engine.wallet.snapshot(); assert.equal(before.transactions.length, 102);
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.equal(f.posts.length, 1); assert.equal(f.button('继续本次发放').props.disabled, false);
   await f.click('继续本次发放');
   const response = f.replies.at(-1);
@@ -611,11 +613,11 @@ test('sixty real recent records preserve the applied query and second-page edit 
   assert.equal(f.recordTitles().length, 50); assert.equal(f.recordTitles()[0], titles[59]);
   assert.equal(f.button('上一页生活记忆').props.disabled, true); assert.equal(f.button('下一页生活记忆').props.disabled, false);
   await f.click('下一页生活记忆'); assert.equal(f.recordTitles().length, 10); assert.equal(f.recordTitles()[0], titles[9]);
-  await f.input('搜索经历', 'UNSUBMITTED_QUERY'); await f.click('刷新生活记录');
+  await f.input('搜索经历', 'UNSUBMITTED_QUERY'); await f.reload();
   assert.deepEqual(lastLifeRead(f), { query: '', offset: '50', limit: '50' });
   assert.equal(f.value('搜索经历'), 'UNSUBMITTED_QUERY'); assert.equal(f.recordTitles()[0], titles[9]);
   await f.click('查看与管理这条经历'); await f.input('纠正经历内容', 'PAGE_MATCH 第二页的未保存纠正');
-  await f.click('刷新生活记录');
+  await f.reload();
   assert.deepEqual(lastLifeRead(f), { query: '', offset: '50', limit: '50' });
   assert.equal(f.value('纠正经历内容'), 'PAGE_MATCH 第二页的未保存纠正');
   assert.doesNotMatch(f.alerts(), /当前记录已变化或暂时无法核对/);
@@ -628,7 +630,7 @@ test('sixty real recent records preserve the applied query and second-page edit 
   await f.input('搜索经历', 'PAGE_MATCH'); await f.click('查找');
   assert.deepEqual(lastLifeRead(f), { query: 'PAGE_MATCH', offset: '0', limit: '50' }, 'explicit lookup starts at the first page');
   assert.equal(f.recordTitles().length, 50);
-  await f.input('搜索经历', 'ANOTHER_UNSUBMITTED_QUERY'); await f.click('刷新生活记录');
+  await f.input('搜索经历', 'ANOTHER_UNSUBMITTED_QUERY'); await f.reload();
   assert.deepEqual(lastLifeRead(f), { query: 'PAGE_MATCH', offset: '0', limit: '50' });
   await f.click('下一页生活记忆');
   assert.deepEqual(lastLifeRead(f), { query: 'PAGE_MATCH', offset: '50', limit: '50' });
@@ -646,7 +648,7 @@ test('sixty real recent records preserve the applied query and second-page edit 
   // If another owner removes the second page, refreshing must return to the
   // remaining valid page and hide pagination at exactly fifty records.
   for (const id of ids.slice(0, 10)) f.memory.manage('delete', { id }, { scope: f.scope, authorize: () => true });
-  const beforeClamp = f.calls.length; await f.click('刷新生活记录');
+  const beforeClamp = f.calls.length; await f.reload();
   assert.deepEqual(f.calls.slice(beforeClamp).map((row) => row.method), ['GET', 'GET']);
   assert.deepEqual(lastLifeRead(f), { query: 'PAGE_MATCH', offset: '0', limit: '50' });
   assert.equal(f.recordTitles().length, 50); assert.equal(f.posts.length, 3);
@@ -665,7 +667,7 @@ test('failed view readback after a confirmed bonus falls back clearly without re
   assert.doesNotMatch(f.alerts(), /FIXTURE_READBACK_FAILURE|草稿仍保留|操作未确认/);
   assert.equal(f.value('搜索经历'), ''); assert.equal(f.button('查看全部记录'), undefined);
   assert.deepEqual(f.recordTitles(), ['OTHER_ENTRY', 'ALPHA_SECOND', 'ALPHA_FIRST']);
-  await f.invoke(f.button('已发放')); await f.click('刷新生活记录');
+  await f.invoke(f.button('已发放')); await f.reload();
   assert.deepEqual(lastLifeRead(f), { query: '', offset: '0', limit: '50' });
   assert.equal(f.posts.length, 1); assert.equal(f.engine.wallet.snapshot().balance, 300);
 });
@@ -719,7 +721,7 @@ test('quiet hours have an explicit switch, retain disabled choices, and reject e
   await f.input('启用免打扰时段', false); await f.click('保存自主活动范围');
   assert.equal(f.engine.snapshot().policy.quietStart, 22); assert.equal(f.engine.snapshot().policy.quietEnd, 22);
   assert.equal(f.engine.snapshot().policy.quietEnabled, false);
-  await f.click('刷新生活记录'); assert.equal(f.checked('启用免打扰时段'), false);
+  await f.reload(); assert.equal(f.checked('启用免打扰时段'), false);
   assert.equal(f.engine.snapshot().activities.length, 0);
 });
 
@@ -744,7 +746,7 @@ test('browser and greeting controls retain drafts while their parent permission 
   assert.equal(policy.proactive, false); assert.equal(policy.greetingEnabled, true); assert.equal(policy.enabled, false);
   assert.equal(f.engine.snapshot().activities.length, 0);
   await f.input('允许自主浏览视频平台', true); assert.equal(f.checked('抖音'), true); assert.equal(f.value('单次娱乐最多分钟'), '5');
-  await f.click('刷新生活记录'); assert.equal(f.checked('允许自主浏览视频平台'), true, 'a refresh preserves this unsaved browser draft');
+  await f.reload(); assert.equal(f.checked('允许自主浏览视频平台'), true, 'a refresh preserves this unsaved browser draft');
   assert.equal(f.engine.snapshot().policy.browse, false); assert.equal(f.engine.snapshot().activities.length, 0);
 });
 
@@ -769,7 +771,7 @@ test('manage-contacts navigation checks current life drafts, maintenance, and di
   await f.input('每日基础分钟', '15'); assert.equal(f.button('管理聊天对象').props.disabled, true);
   assert.match(f.text, /请先保存或撤销生活页未保存的修改/);
   await f.invoke(old); assert.equal(navigations, 1, 'retained navigation callback checks the latest draft');
-  await f.click('刷新生活记录'); assert.equal(f.value('每日基础分钟'), '15'); await f.invoke(old); assert.equal(navigations, 1);
+  await f.reload(); assert.equal(f.value('每日基础分钟'), '15'); await f.invoke(old); assert.equal(navigations, 1);
   await f.click('撤销未保存修改'); await f.simulateGate(true); await f.invoke(old); assert.equal(navigations, 1);
   await f.simulateGate(false); await f.setAlive(false); await f.invoke(old); assert.equal(navigations, 1);
   assert.equal(f.posts.length, 0); assert.equal(f.engine.snapshot().activities.length, 0);
@@ -780,7 +782,7 @@ test('shipped life-panel parent connects manage-contacts to the existing account
   const start = source.indexOf(": key === 'life' ? h(LifePanel, {"); assert.ok(start >= 0);
   const end = source.indexOf(": key === 'memory'", start), expression = source.slice(start, end).split('? ').slice(1).join('? ').trim();
   const selectedTabs = [], account = { qq: '20002', name: '测试账号', enabled: true, activeIdentityId: 'default' };
-  const context = { h: (_type, props) => props, LifePanel() {}, tab: 'life', runningAccounts: [account], editedAccounts: [],
+  const context = { h: (_type, props) => props, LifePanel() {}, tab: 'life', refreshKey: 0, resourceRefreshKey: 0, runningAccounts: [account], editedAccounts: [],
     value: (key) => key === 'ownerQq' ? '20002' : undefined, selectTab: (key) => selectedTabs.push(key), setLifeDirty() {}, runtime: {} };
   for (const key of ['blocked', 'pendingReload', 'dirty', 'personaDirty', 'modelDirty', 'voiceDirty', 'speechDirty', 'galleryDirty', 'memoryDirty']) context[key] = false;
   const props = vm.runInNewContext('(' + expression + ')', context);
@@ -794,7 +796,7 @@ test('shipped life-panel parent connects manage-contacts to the existing account
 async function enableOneBrowse(f) {
   f.engine.configure({ enabled: true, browse: true, proactive: false, platforms: ['douyin'], targets: [f.scope], quietEnabled: false, sessionSeconds: 180 }, { authorize: () => true });
   f.engine.wallet.configure({ enabled: true, dailySeconds: 600, monthlySeconds: 0 }, { authorize: () => true });
-  await f.click('刷新生活记录');
+  await f.reload();
 }
 test('one new autonomy activity is explicit, uses saved policy and cannot start through a stale dirty form handler', async t => {
   const f = fixture(t); await f.flush(); let executions = 0;
@@ -825,7 +827,7 @@ test('a pending one-off activity keeps cancellation available despite its long r
   await f.click('停止当前自主活动'); await pending; await f.flush();
   assert.equal(cancelled, 1); assert.equal(f.posts.length, 2); assert.equal(f.posts[1].payload.action, 'cancel');
   assert.equal(f.engine.snapshot().running, false); assert.equal(f.engine.snapshot().activities[0].status, 'cancelled');
-  assert.equal(f.button('停止当前自主活动').props.disabled, true);
+  assert.equal(f.button('停止当前自主活动'), undefined, 'the stop control disappears once no activity is running');
 });
 test('one-off activity response failure only refreshes records and an unknown activity cannot be resubmitted', async t => {
   const f = fixture(t); await f.flush(); await enableOneBrowse(f); let executions = 0;
@@ -834,7 +836,7 @@ test('one-off activity response failure only refreshes records and an unknown ac
   assert.equal(executions, 1); assert.equal(f.posts.length, 1); assert.deepEqual(f.calls.slice(before).map(row => row.method), ['POST', 'GET']);
   assert.match(f.alerts(), /不会自动重试或重发活动/); assert.equal(f.engine.snapshot().activities[0].status, 'completed');
   f.memory.store.update(state => { state.autonomy.activities[0].status = 'unknown'; }, { authorize: () => true });
-  const stale = f.button('检查并开始一次活动'); await f.click('刷新生活记录');
+  const stale = f.button('检查并开始一次活动'); await f.reload();
   assert.equal(f.button('检查并开始一次活动').props.disabled, true); await f.invoke(stale);
   assert.equal(f.posts.length, 1); assert.equal(executions, 1);
 });

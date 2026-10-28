@@ -2970,7 +2970,7 @@ window.__ModuleLoader__.load({
           : !failure ? h('p', { className: 'dfy-meta' }, '正在读取 Token 状态…') : null);
     }
 
-    function LifePanel({ active, accounts, ownerQq = '', onManageAccounts, onDirtyChange, writeBlocked = false, revokeBlocked = writeBlocked, cancelBlocked = false }) {
+    function LifePanel({ active, refreshKey = 0, accounts, ownerQq = '', onManageAccounts, onDirtyChange, writeBlocked = false, revokeBlocked = writeBlocked, cancelBlocked = false }) {
       const api = usePanelApi(), [data, setData] = useState(null), [draft, setDraft] = useState(null);
       const [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [failure, setFailure] = useState('');
       const [query, setQuery] = useState(''), [appliedQuery, setAppliedQuery] = useState('');
@@ -3077,7 +3077,7 @@ window.__ModuleLoader__.load({
         } catch (error) { setFailure(error.message || '生活记录读取失败'); }
         finally { lock.current = false; setBusy(false); }
       }
-      useEffect(() => { if (active && !data) void load(); }, [active]);
+      useEffect(() => { if (active) void load(); }, [active, refreshKey]);
       function resetDraft() {
         if (lock.current || !live() || !latest.current.data) return;
         const fresh = values(latest.current.data); baseline.current = fresh; setDraft(fresh);
@@ -3250,11 +3250,8 @@ window.__ModuleLoader__.load({
         onClick: () => { if (!lock.current && !cancelLock.current && live() && (!mutating || !latest.current.writeBlocked)) return handler(); } }, label);
       const recordAct = (action, input = {}) => act(action, { id: selected.id, ...input });
       return h('div', { 'aria-label': '生活与成长管理' },
-        h(SectionHeading, { title: '生活与成长', help: '近期经历、逐渐形成的习惯、自主活动和可结余的零花时间。开关默认关闭，启用后按所选范围运行。' },
-          button('刷新生活记录', () => load(), false, false),
-          dirty ? button('撤销未保存修改', resetDraft, !settingsDirty && !experienceDirty && !bonusDraft, false) : null,
-          data ? h('button', { type: 'button', className: 'dfy-button', disabled: cancelBlocked || cancellingActivity || !data.autonomy.running && !checkingNow,
-            onClick: cancelActivity }, cancellingActivity ? '正在停止自主活动…' : '停止当前自主活动') : null),
+        h(SectionHeading, { title: '生活与成长', help: '近期经历、逐渐形成的习惯、自主活动和可结余的零花时间。开关默认关闭，启用后按所选范围运行。进入本页或点顶部「刷新状态」都会读取最新记录。' },
+          dirty ? button('撤销未保存修改', resetDraft, !settingsDirty && !experienceDirty && !bonusDraft, false) : null),
         h(TokenPanel, { active, onDirtyChange: setTokensDirty, writeBlocked }),
         dirty ? h('p', { className: 'dfy-hint', role: 'status' }, bonusUnresolved
           ? '本次发放结果需要核对。刷新只读取记录，不会重新发放。'
@@ -3350,6 +3347,8 @@ window.__ModuleLoader__.load({
                 number('autonomy', 'minGapMinutes', '主动聊天最小间隔分钟'), number('autonomy', 'maxActivities', '每日自主活动总次数上限')),
               h('p', { className: 'dfy-hint' }, '聊天次数按账号和身份分别统计当日已送达消息；活动总次数按当日已创建的活动统计，待计划活动不计入。娱乐时间和 Token 额度分别在上方管理，不互相换算。')),
             sectionErrors.autonomy ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.autonomy) : null,
+            data.autonomy.running || checkingNow ? h('button', { type: 'button', className: 'dfy-button', disabled: cancelBlocked || cancellingActivity,
+              onClick: cancelActivity }, cancellingActivity ? '正在停止自主活动…' : '停止当前自主活动') : null,
             h('p', { className: 'dfy-hint' }, '检查并开始一次会创建新的自主活动，按已保存的范围、Token 和娱乐时间额度记账；不会提前或重做旧计划。不会替你开启首次问候；问候仅在你已单独允许时发送。'),
             button(checkingNow ? '正在检查并进行一次活动…' : '检查并开始一次活动', () => act('autonomy-check-now'), !canCheckNow()),
             autonomyDraftDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销自主活动范围草稿，再开始一次新活动。') : null,
@@ -4199,7 +4198,7 @@ window.__ModuleLoader__.load({
                 : key === 'social' ? h(VideoPlatformsPanel, { active: tab === 'social' })
                 : key === 'dependencies' ? h(DependencyPanel, { active: tab === 'dependencies', onNavigate: selectTab, maintenanceBlocked: operationBlocked })
                   : key === 'memes' ? h(GalleryPanel, { active: tab === 'memes', onDirtyChange: setGalleryDirty })
-                    : key === 'life' ? h(LifePanel, { active: tab === 'life', accounts: runningAccounts.length ? runningAccounts : editedAccounts,
+                    : key === 'life' ? h(LifePanel, { active: tab === 'life', refreshKey: resourceRefreshKey, accounts: runningAccounts.length ? runningAccounts : editedAccounts,
                       ownerQq: String(value('ownerQq') || ''), onManageAccounts: () => selectTab('accounts'), onDirtyChange: setLifeDirty,
                       writeBlocked: blocked || runtime.busy === true || runtime.applying === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
                       revokeBlocked: blocked || runtime.applying === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,

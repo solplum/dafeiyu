@@ -349,7 +349,7 @@ test('life token draft is independent from legacy life responses and both forms 
   assert.equal(f.field('-dailyTokens').props.value, '100');
   assert.equal(f.nodes(learning()).find((node) => node.type === 'input').props.checked, true);
   assert.equal(f.button('生活与成长').props['data-dirty'], true);
-  await f.click('刷新生活记录');
+  await f.click('刷新');
   assert.equal(f.nodes(learning()).find((node) => node.type === 'input').props.checked, true, 'refresh preserves unsaved life settings');
   await f.click('撤销未保存修改');
   assert.equal(f.nodes(learning()).find((node) => node.type === 'input').props.checked, false);
