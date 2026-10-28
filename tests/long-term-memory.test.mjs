@@ -103,3 +103,31 @@ test('native directory and body tools use actual identity and reject caller-prov
   await assert.rejects(tools.get('dafeiyu_memory_index').execute({ query: 'OWNER_ONLY_BODY' }, {}), /主人/);
   await assert.rejects(tools.get('dafeiyu_memory_read').execute({ id: saved.recordId, revision: index.revision }, {}), /主人/);
 });
+
+
+test('owner clearAll empties facts, archive and events after backing up originals', (t) => {
+  const { bridge, directory } = fixture(t);
+  bridge.remember({ key: 'tea', summary: '喜欢热茶', detail: '日常喜欢喝热茶。' });
+  fs.writeFileSync(path.join(directory, 'memory', 'user.md'), '# 档案\n\n### 主要使用者\n\n主人档案段落。\n', { mode: 0o600 });
+  fs.writeFileSync(path.join(directory, 'memory', 'timeline.md'), '# 手账\n\n## [2026-10-28] 事件\n\n今天的事。\n', { mode: 0o600 });
+  const before = bridge.snapshot({}).items.length;
+  assert.ok(before >= 3);
+  const result = bridge.clearAll({}, { authorize: yes });
+  assert.equal(result.cleared, before);
+  const after = bridge.snapshot({});
+  assert.equal(after.items.length, 0);
+  const files = fs.readdirSync(path.join(directory, 'memory'));
+  assert.ok(files.some((name) => name.startsWith('facts.json.bak-')), 'facts backup exists');
+  assert.ok(files.some((name) => name.startsWith('user.md.bak-')), 'archive backup exists');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'memory', 'facts.json'), 'utf8')).facts.length, 0);
+  // 清空后再记新条目仍然可用
+  bridge.remember({ key: 'fresh', summary: '新的记忆', detail: '清空后重新积累。' });
+  assert.equal(bridge.snapshot({}).items.length, 1);
+});
+
+test('clearAll refuses without owner authorization', (t) => {
+  const { bridge } = fixture(t);
+  bridge.remember({ key: 'tea', summary: '喜欢热茶', detail: '日常喜欢喝热茶。' });
+  assert.throws(() => bridge.clearAll({}, { authorize: () => false }), /主人管理权限/);
+  assert.equal(bridge.snapshot({}).items.length, 1);
+});

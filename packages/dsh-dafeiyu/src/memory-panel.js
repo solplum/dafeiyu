@@ -53,4 +53,5 @@ export class MemoryPanelController {
   resumeDelete(input, options) { return this.#mutate('resumeDelete', input, options); }
   delete(input, options) { return this.#mutate('delete', input, options); }
   restore(input, options) { return this.#mutate('restore', input, options); }
+  clear(input, options) { return this.#mutate('clearAll', input, options); }
 }

@@ -3400,6 +3400,7 @@ window.__ModuleLoader__.load({
       const api = usePanelApi();
       const [snapshot, setSnapshot] = useState(null), [filters, setFilters] = useState({ query: '' });
       const [selected, setSelected] = useState(null), [drafts, setDrafts] = useState({});
+      const [armedClear, setArmedClear] = useState(false);
       const [busy, setBusy] = useState(''), [failure, setFailure] = useState(null), [notice, setNotice] = useState('');
       const lock = useRef(false), latest = useRef({}), editorId = useRef('dfy-memory-' + Math.random().toString(36).slice(2));
       const values = (item) => ({ summary: item.summary || '', detail: item.detail || '',
@@ -3427,6 +3428,17 @@ window.__ModuleLoader__.load({
         finally { lock.current = false; if (api.alive.current) setBusy(''); }
       }
       useEffect(() => { if (active) load(0); }, [active, refreshKey]);
+      async function clearAll() {
+        if (lock.current || armedClear !== true) return;
+        lock.current = true; setBusy('clear'); setFailure(null); setNotice('');
+        let done = false;
+        try {
+          const result = await api.call('memory/clear', 'POST', {});
+          if (api.alive.current) { setNotice(result.memory?.note || '已清空全部记忆。'); done = true; }
+        } catch (error) { if (api.alive.current) setFailure(error); }
+        finally { lock.current = false; setArmedClear(false); if (api.alive.current) setBusy(''); }
+        if (done) await load(0);
+      }
       // 筛选条件变化即自动检索（300ms 防抖）。
       useEffect(() => {
         if (!active || !snapshot || lock.current) return;
@@ -3518,7 +3530,11 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dfy-meta' }, '共 ', snapshot.total, ' 条 · 第 ', Math.floor(snapshot.offset / 50) + 1, ' 页', snapshot.truncated ? ' · 还有更多' : ''),
             h('div', { className: 'dfy-inline-actions' },
               h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || anyDirty || snapshot.offset < 50, onClick: () => load(Math.max(0, snapshot.offset - 50)) }, '上一页'),
-              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || anyDirty || snapshot.offset + snapshot.limit >= snapshot.total, onClick: () => load(snapshot.offset + snapshot.limit) }, '下一页'))),
+              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || anyDirty || snapshot.offset + snapshot.limit >= snapshot.total, onClick: () => load(snapshot.offset + snapshot.limit) }, '下一页'),
+              snapshot.total > 0 || armedClear ? h('button', { type: 'button', className: 'dfy-link-button',
+                disabled: Boolean(busy) || writeBlocked || anyDirty, style: { color: armedClear ? '#b14545' : undefined },
+                onClick: () => { if (armedClear) clearAll(); else { setArmedClear(true); setNotice(''); } } },
+                armedClear ? '再点一次确认清空全部（原文会自动备份）' : '清空全部记忆') : null)),
           items.length ? items.map((item) => h('article', { key: item.id, className: 'dfy-suite-component' },
             h('button', { type: 'button', className: 'dfy-memory-row', onClick: () => toggle(item), 'data-memory-id': item.id, 'aria-expanded': selected === item.id,
               'aria-label': '查看与纠正记忆：' + item.summary + (scopeVariety ? '，' + contextLabel(item) : '') },

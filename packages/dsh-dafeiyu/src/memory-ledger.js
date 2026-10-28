@@ -256,6 +256,26 @@ export class MemoryLedger {
     });
   }
 
+  /** Owner-initiated full reset: clears facts, archive sections, events and overlay after copying backups. */
+  clear({ authorize = () => true } = {}) {
+    return this.withLock(() => {
+      let allowed = false; try { allowed = authorize() === true; } catch {}
+      if (!allowed) fail('FORBIDDEN', '需要本机主人管理权限');
+      const before = this.load();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      for (const key of Object.keys(this.paths)) {
+        if (this.read(this.paths[key]) !== null) fs.copyFileSync(this.paths[key], `${this.paths[key]}.bak-${stamp}`);
+      }
+      this.atomic(this.paths.facts, JSON.stringify({ version: 1, facts: [] }, null, 2) + '\n');
+      for (const key of ['archive', 'events', 'overlay']) {
+        if (fs.existsSync(this.paths[key])) fs.rmSync(this.paths[key]);
+      }
+      const after = this.load();
+      return { ok: true, cleared: before.records.length, revision: after.revision,
+        note: `已清空 ${before.records.length} 条记忆；原文已在本目录备份为 *.bak-${stamp}。` };
+    });
+  }
+
   withLock(write) {
     fs.mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     let locked = false;

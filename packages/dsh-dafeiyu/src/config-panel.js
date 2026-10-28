@@ -365,7 +365,7 @@ export function registerConfigPanel(ctx, controller) {
       'capabilities/check': ['POST'], 'capabilities/probe': ['POST'],
       'desktop-context/status': ['GET'], 'desktop-context/preview': ['POST'], 'desktop-context/recover': ['POST'],
       'conversations/stop': ['POST'], 'conversations/recover': ['POST'], 'tasks/cancel': ['POST'], 'tasks/test': ['POST'], 'tasks/acknowledge': ['POST'],
-      memory: ['GET'], 'memory/correct': ['POST'], 'memory/forget': ['POST'], 'memory/restore': ['POST'], 'memory/delete': ['POST'], 'memory/resume-delete': ['POST'],
+      memory: ['GET'], 'memory/correct': ['POST'], 'memory/forget': ['POST'], 'memory/restore': ['POST'], 'memory/delete': ['POST'], 'memory/resume-delete': ['POST'], 'memory/clear': ['POST'],
       'napcat/status': ['GET'], 'napcat/qrcode': ['POST'], memes: ['GET'], 'meme-image': ['GET'], persona: ['GET', 'POST'],
       'meme-detail': ['GET'], 'meme-metadata': ['POST'], 'memes/import': ['POST'],
       'model/status': ['GET'], 'model/config': ['POST'], 'model/probe': ['POST'], 'model/test': ['POST'], 'model/selection': ['POST'], 'model/rebind': ['POST'],

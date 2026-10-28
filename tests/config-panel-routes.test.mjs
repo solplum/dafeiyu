@@ -20,7 +20,7 @@ const ENDPOINTS = [...Object.keys(SOCIAL_ACCOUNT_ROUTES), 'state', 'life', 'life
   'model/status', 'model/config', 'model/probe', 'model/test', 'model/selection', 'model/rebind', 'speech/prepare', 'speech/selection', 'speech/test',
   'dependencies', 'dependencies/check', 'dependencies/action',
   'voice/status', 'voice/config', 'voice/check', 'voice/test', 'social/status', 'social/check', 'phone/check', 'phone/connect'];
-ENDPOINTS.splice(9, 0, 'conversations/stop', 'conversations/recover', 'tasks/cancel', 'tasks/test', 'tasks/acknowledge', 'memory', 'memory/correct', 'memory/forget', 'memory/restore', 'memory/delete', 'memory/resume-delete');
+ENDPOINTS.splice(9, 0, 'conversations/stop', 'conversations/recover', 'tasks/cancel', 'tasks/test', 'tasks/acknowledge', 'memory', 'memory/correct', 'memory/forget', 'memory/restore', 'memory/delete', 'memory/resume-delete', 'memory/clear');
 ENDPOINTS.splice(9, 0, 'capabilities', 'capabilities/check', 'capabilities/probe');
 ENDPOINTS.splice(9, 0, 'desktop-context/status', 'desktop-context/preview', 'desktop-context/recover');
 const ownerPeer = () => ({ principal: { kind: 'owner' }, signal: new AbortController().signal });
@@ -363,8 +363,8 @@ test('unauthenticated, API peer, revoked peer and admission failures cannot read
 test('a current owner can read state with safe headers, saved/effective fields and secret presence only', async (t) => {
   const f = fixture(t);
   assert.equal(f.registration.registered, true);
-  assert.equal(ENDPOINTS.length, 54 + Object.keys(SOCIAL_ACCOUNT_ROUTES).length);
-  assert.equal(ENDPOINTS.length + 1, 55 + Object.keys(SOCIAL_ACCOUNT_ROUTES).length, 'persona contributes separate GET and POST methods');
+  assert.equal(ENDPOINTS.length, 55 + Object.keys(SOCIAL_ACCOUNT_ROUTES).length);
+  assert.equal(ENDPOINTS.length + 1, 56 + Object.keys(SOCIAL_ACCOUNT_ROUTES).length, 'persona contributes separate GET and POST methods');
   assert.deepEqual([...f.routes.keys()].sort(), ENDPOINTS.map((name) => PREFIX + name).sort());
   const response = await f.call('state').done;
   assert.equal(response.status, 200); clean(response);
