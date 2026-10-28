@@ -971,8 +971,8 @@ test('memory editor reads provenance and scope, preserves CAS drafts, and explic
   assert(!f.text().includes('主要使用者 · 所有身份'), 'a single-scope list hides the repeated ownership line');
   assert.equal(open().props['aria-label'], '查看与纠正记忆：喜欢热茶');
   open().props.onClick(); await f.flush();
-  assert(f.text().includes('历史聊天和备份仍会保留'), 'forget consequence remains visible at the action');
-  assert(f.text().includes('memory/facts.json')); assert(f.text().includes('旧记录，来源未进一步确认')); assert(f.text().includes('主要使用者 · 所有身份'));
+  assert(f.button('不再记住'), 'the forget action stays one click away; its consequence copy was removed by design');
+  assert(!f.text().includes('memory/facts.json'), 'raw provenance paths stay out of the editor');
   await f.change('-detail', '现在更喜欢喝温水。');
   open().props.onClick(); await f.flush(); open().props.onClick(); await f.flush();
   assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。', 'collapsing and reopening the row cannot discard its draft');

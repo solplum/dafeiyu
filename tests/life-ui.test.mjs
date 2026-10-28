@@ -116,7 +116,7 @@ test('actual life UI places independent Douyin interaction switches in advanced 
   const f = fixture(t); await f.flush();
   const advanced = f.details('高级设置'); assert.ok(advanced);
   assert.match(f.textOf(advanced), /抖音自主互动/);
-  assert.match(f.textOf(advanced), /账号与具体动作仍须核验就绪；未核验不会发送/);
+  assert.match(f.textOf(advanced), /仍受额度与频率限制/);
   for (const label of ['允许自主点赞', '允许自主关注', '允许自主评论']) {
     assert.equal(f.checked(label), false);
     assert.ok(f.nodes().includes(f.inputNode(label)));
@@ -686,7 +686,7 @@ test('autonomy settings group enabled contacts by current identity and keep owne
     ['联系谁', '允许做什么', '免打扰', '频率与额度', '当前等待原因']);
   assert.match(f.text, /甲 · 20002 · 老大和小弟主要使用者（配置）/);
   assert.match(f.text, /乙 · 30003 · 朋友/); assert.doesNotMatch(f.text, /未启用账号|隐藏身份/);
-  assert.match(f.text, /勾选只选择主动联系人，不会切换主要账号/);
+  assert.match(f.text, /这里只选择她会主动联系谁/);
   assert.equal(f.posts.length, 0); assert.equal(f.checked('没有话题时，允许首次主动问候'), false);
   const target = f.inputNode('甲 · 20002'); await f.input('甲 · 20002', true);
   assert.equal(f.rootDirty, true); assert.equal(f.posts.length, 0, 'selecting a contact is only a local draft');
@@ -728,7 +728,7 @@ test('quiet hours have an explicit switch, retain disabled choices, and reject e
 test('browser and greeting controls retain drafts while their parent permission is disabled', async (t) => {
   const f = fixture(t, { ownerQq: '20002' }); await f.flush();
   assert.equal(f.checked('没有话题时，允许首次主动问候'), false); assert.equal(f.inputNode('没有话题时，允许首次主动问候').props.disabled, true);
-  assert.match(f.text, /首次问候默认关闭.*仅对已选中的主要使用者当前身份生效/);
+  assert.match(f.text, /默认关闭；开启后只在免打扰、间隔和次数限制内生效/);
   assert.equal(f.inputNode('抖音').props.disabled, true); assert.equal(f.inputNode('单次娱乐最多分钟').props.disabled, true);
   await f.input('允许自主浏览视频平台', true); await f.input('抖音', true); await f.input('单次娱乐最多分钟', '5');
   const platform = f.inputNode('抖音'), session = f.inputNode('单次娱乐最多分钟');
@@ -810,7 +810,7 @@ test('one new autonomy activity is explicit, uses saved policy and cannot start 
   assert.equal(executions, 1); assert.equal(f.posts.length, 1); assert.equal(f.posts[0].payload.action, 'autonomy-check-now');
   assert.deepEqual(Object.keys(f.posts[0].payload.input), ['revision']); assert.equal(f.posts[0].timeoutMs, 390000);
   assert.equal(f.engine.snapshot().activities[0].status, 'completed'); assert.equal(f.engine.snapshot().policy.greetingEnabled, false);
-  assert.match(f.text, /不会替你开启首次问候/); assert.match(f.text, /Token 和娱乐时间额度记账/);
+  assert.match(f.text, /手动发起一次自主活动，按已保存的额度记账/); assert.match(f.text, /按已保存的额度记账/);
 });
 test('a pending one-off activity keeps cancellation available despite its long request and external write gates', async t => {
   const f = fixture(t); await f.flush(); await enableOneBrowse(f);

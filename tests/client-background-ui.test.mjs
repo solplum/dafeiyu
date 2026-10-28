@@ -216,7 +216,7 @@ test('background tab distinguishes task outcome, QQ delivery and executor detect
   help.props.onClick(); await f.flush();
   await f.expand('高级设置'); await f.expand('查看结果'); await f.expandSettings();
   for (const copy of ['任务列表', '查询任务 编号', '取消任务 编号', '送达结果未知，不自动重发', 'QQ 结果送达：已确认送达',
-    '执行完成不代表 QQ 已收到', 'Z Code / MiniMax Code 默认只读', '安装检测通过不等于已登录', '已检测到，实际调用尚未验证', '当前不可用']) assert.ok(f.text().includes(copy), copy);
+    '执行器默认只读', '已检测到，实际调用尚未验证', '当前不可用']) assert.ok(f.text().includes(copy), copy);
   assert.ok(f.text().includes('已完成只读检查')); assert.ok(f.text().includes('子任务执行未完成'));
   assert.equal(f.cancel('job-1').props.disabled, true); assert.equal(f.cancel('job-2').props.disabled, true);
   assert.equal(f.field('-backgroundTasksEnabled').props.checked, true); assert.equal(f.field('-externalTaskRouting').props.checked, true);

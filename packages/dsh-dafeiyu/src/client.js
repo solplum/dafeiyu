@@ -1253,7 +1253,7 @@ window.__ModuleLoader__.load({
             if (reader.target.trim()) request.target = reader.target.trim(); if (reader.query.trim()) request.query = reader.query.trim();
             const value = await post('read', { platform: reader.platform, request }); setReading(value.read); return '已读取指定账号内容。'; }),
           reading ? h('pre', { style: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }, JSON.stringify(reading, null, 2)) : null),
-        h(Advanced, { title: '准备本地草稿' }, h('p', { className: 'dfy-hint' }, '这一步不会上传或发送。'),
+        h(Advanced, { title: '准备本地草稿' },
           select(form.platform, platforms, value => setForm(old => ({ ...old, platform: value }))),
           select(form.operation, ['comment', 'reply', 'message', 'video', 'post'].map(key => [key, verbs[key]]), value => setForm(old => ({ ...old, operation: value }))),
           ['target', 'parentId', 'rootId', 'text'].map((key, index) => field(['对象', '回复哪条评论', '主评论标识（B站回复需要）', '正文'][index], key)),
@@ -1915,9 +1915,8 @@ window.__ModuleLoader__.load({
           h('p', { className: 'dfy-meta' }, '后台服务：', snapshot?.ready === true ? '已就绪' : snapshot?.ready === false ? '尚未就绪' : '尚未读取',
             ' · 活跃 ', count('active'), ' · 执行中 ', count('running'), ' · 排队 ', count('queued'),
             ' · 待回传 ', count('pendingDelivery'), ' · 送达未知 ', count('deliveryUnknown')),
-          h('p', { className: 'dfy-hint' }, '任务执行结果和 QQ 送达分别记录。执行完成不代表 QQ 已收到；发送失败或送达未知不会自动重跑任务。'),
           h('h4', null, '执行器接入状态'),
-          h('p', { className: 'dfy-hint' }, 'Z Code / MiniMax Code 默认只读。安装检测通过不等于已登录或已验证实际调用；权限范围以执行器配置为准。'),
+          h('p', { className: 'dfy-hint' }, '执行器默认只读，权限以其自身配置为准。'),
           h('p', { className: 'dfy-hint' }, '点击“测试连通”会发起固定的只读测试任务，并把结果发给当前绑定主人 QQ。使用当前生效配置，可能产生少量模型用量。'),
           !detectedExecutors.length ? h('p', { className: 'dfy-hint' }, '服务尚未返回执行器检测结果。') : null,
           executors.map((executor) => h('div', { className: 'dfy-readonly', key: executor.testName, style: { flexWrap: 'wrap' } },
@@ -3265,7 +3264,6 @@ window.__ModuleLoader__.load({
               button('保存记忆与成长设置', () => act('memory-policy', { patch: draft.memory }, 'memory'))),
             check('memory', 'learningEnabled', '自动整理日常聊天'), check('memory', 'growthEnabled', '随长期交流积累相处习惯'),
             h('div', { className: 'dfy-grid' }, number('memory', 'detailedDays', '普通经历保留细节的天数'), number('memory', 'summaryDays', '普通概要参与主动回忆的天数')),
-            h('p', { className: 'dfy-hint' }, '固定记忆和未完成约定不随时间淡化。读取不会强化记忆，回忆不清时不得编造。'),
             sectionErrors.memory ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.memory) : null),
           h('section', { className: 'dfy-section' },
             h(SectionHeading, { title: '娱乐时间钱包' },
@@ -3273,7 +3271,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dfy-state-grid' }, h('div', { className: 'dfy-state-cell' }, '今日基础剩余：', Math.floor(data.autonomy.wallet.dailyRemainingSeconds / 60), ' 分钟'),
               h('div', { className: 'dfy-state-cell' }, '零花余额：', (data.autonomy.wallet.balance / 60).toFixed(1), ' 分钟')),
             check('wallet', 'enabled', '启用娱乐时间额度'), h('div', { className: 'dfy-grid' }, number('wallet', 'dailySeconds', '每日基础分钟', 60), number('wallet', 'monthlySeconds', '每月零花分钟', 60)),
-            h('p', { className: 'dfy-hint' }, '每日基础时间不结转；每月零花时间可一直累积。加载、暂停和离线不计娱乐时间。用户交办任务不从此钱包扣除。时区：Asia/Shanghai。'),
+            h('p', { className: 'dfy-hint' }, '每日基础不结转，每月零花可累积；交办任务不扣这里。'),
             sectionErrors.wallet ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.wallet) : null,
             h('div', { style: { marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(127,127,127,.18)' } },
             h('h4', null, '额外零花时间'),
@@ -3282,7 +3280,7 @@ window.__ModuleLoader__.load({
               onChange: (event) => { if (!lock.current && live() && !latest.current.writeBlocked && !bonusIntent.current) {
                 setBonusMinutes(String(event.target.value)); setNotice(''); setSectionErrors((old) => ({ ...old, bonus: '' }));
               } } })),
-            h('p', { className: 'dfy-hint' }, '额外发放是一笔单独增加的零花时间，不改变上方每月额度。'),
+            h('p', { className: 'dfy-hint' }, '单笔加发，不影响每月额度。'),
             sectionErrors.bonus ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.bonus) : null,
             button(bonusReceipt?.phase === 'done' ? '已发放' : bonusReceipt?.phase === 'unknown' ? '继续本次发放' : '发放零花时间',
               () => act('bonus'), bonusReceipt?.phase === 'done' || !bonusMinutes.trim()),
@@ -3308,16 +3306,16 @@ window.__ModuleLoader__.load({
                   } }), ' ' + (account.name || account.qq) + ' · ' + account.qq + ' · ' + (identity?.name || account.activeIdentityId),
                   account.qq === ownerQq ? h('span', { className: 'dfy-badge' }, '主要使用者（配置）') : null);
               }) : h('p', { className: 'dfy-empty' }, '还没有已启用的聊天对象，请先在“管理聊天对象”中添加并启用。'),
-              h('p', { className: 'dfy-hint' }, '主要使用者的权限和私人记忆归属在“管理聊天对象”中管理。这里的勾选只选择主动联系人，不会切换主要账号。'),
+              h('p', { className: 'dfy-hint' }, '这里只选择她会主动联系谁，不改账号权限。'),
               button('管理聊天对象', manageAccounts, !onManageAccounts || dirty || tokensDirty),
               dirty || tokensDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销生活页未保存的修改，再管理聊天对象。')
                 : formBlocked ? h('p', { className: 'dfy-hint' }, '请先处理其他页面的未保存修改或等待当前操作结束，再管理聊天对象。') : null),
             h('div', { className: 'dfy-sub', 'aria-label': '允许做什么' }, h('h4', null, '允许做什么'),
               h('h5', null, '主动聊天'), check('autonomy', 'proactive', '允许主动找选定账号聊天'),
               check('autonomy', 'greetingEnabled', '没有话题时，允许首次主动问候'),
-              h('p', { className: 'dfy-hint' }, '首次问候默认关闭；开启后，仅对已选中的主要使用者当前身份生效，仍受免打扰、间隔和次数限制，不会向其他账号首次问候。保存设置不会立即发送消息。'),
+              h('p', { className: 'dfy-hint' }, '默认关闭；开启后只在免打扰、间隔和次数限制内生效，保存不会立即发送。'),
               h('h5', null, '自主浏览'), check('autonomy', 'browse', '允许自主浏览视频平台'),
-              h('p', { className: 'dfy-hint' }, '浏览通过独立浏览器空间，全程静音。抖音点赞、关注和评论需在高级设置中单独允许；登录、私信和发布仍需本人安排。关闭浏览时保留平台与时限设置。'),
+              h('p', { className: 'dfy-hint' }, '独立浏览器静音浏览；点赞关注评论需在下方单独允许。'),
               ['bilibili', 'douyin'].map((platform) => h('label', { key: platform, className: 'dfy-field' }, h('input', { type: 'checkbox', disabled: busy || formBlocked || !draft.autonomy.browse,
                 checked: draft.autonomy.platforms.includes(platform), onChange: (event) => {
                   if (!fieldEnabled('autonomy', 'platforms')) return;
@@ -3327,8 +3325,7 @@ window.__ModuleLoader__.load({
               number('autonomy', 'sessionSeconds', '单次娱乐最多分钟', 60),
               h('details', { className: 'dfy-advanced' }, h('summary', null, '高级设置'),
                 h('h5', null, '抖音自主互动'),
-                h('p', { className: 'dfy-hint' }, '以下三项默认关闭。保存开启后，大肥鱼可在自主浏览时决定是否点赞、关注当前作者或评论当前作品；仍受账号核验、频率、Token 和时间额度限制。保存设置不会立即互动。'),
-                h('p', { className: 'dfy-hint' }, '许可保存后，账号与具体动作仍须核验就绪；未核验不会发送。开关不代表真实互动已验收。'),
+                h('p', { className: 'dfy-hint' }, '三项默认关闭；开启后她可在浏览时自主决定，仍受额度与频率限制，保存不会立即互动。'),
                 ['like', 'follow', 'comment'].map((operation) => h('label', { key: operation, className: 'dfy-field' },
                   h('input', { type: 'checkbox', checked: draft.autonomy.douyinInteractions[operation] === true,
                     disabled: busy || latest.current.revokeBlocked || formBlocked && (data.autonomy.policy.douyinInteractions?.[operation] !== true || draft.autonomy.douyinInteractions[operation] !== true),
@@ -3336,7 +3333,7 @@ window.__ModuleLoader__.load({
                   ' ', ({ like: '允许自主点赞', follow: '允许自主关注', comment: '允许自主评论' })[operation])),
                 !draft.autonomy.enabled || !draft.autonomy.browse || !draft.autonomy.platforms.includes('douyin')
                   ? h('p', { className: 'dfy-hint' }, '需同时开启自主活动、自主浏览并勾选抖音，以上许可才会生效。') : null,
-                h('p', { className: 'dfy-hint' }, '关闭任一互动许可并保存，会停止当前抖音自主活动并取消后续互动；已发送的内容不会自动撤回。执行或发送结果未确认时会暂停，不会自动重试。'),
+                h('p', { className: 'dfy-hint' }, '关闭并保存会停止当前抖音活动；已发内容不撤回。'),
                 formBlocked ? h('button', { type: 'button', className: 'dfy-button', disabled: busy || !interactionRevocations(), onClick: revokeInteractions }, '仅保存关闭的抖音互动') : null)),
             h('div', { className: 'dfy-sub', 'aria-label': '免打扰' }, h('h4', null, '免打扰'),
               check('autonomy', 'quietEnabled', '启用免打扰时段'),
@@ -3345,11 +3342,11 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dfy-sub', 'aria-label': '频率与额度' }, h('h4', null, '频率与额度'),
               h('div', { className: 'dfy-grid' }, number('autonomy', 'maxContacts', '每个聊天身份每日主动联系上限'),
                 number('autonomy', 'minGapMinutes', '主动聊天最小间隔分钟'), number('autonomy', 'maxActivities', '每日自主活动总次数上限')),
-              h('p', { className: 'dfy-hint' }, '聊天次数按账号和身份分别统计当日已送达消息；活动总次数按当日已创建的活动统计，待计划活动不计入。娱乐时间和 Token 额度分别在上方管理，不互相换算。')),
+              h('p', { className: 'dfy-hint' }, '聊天按账号与身份分别计数；娱乐时间和 Token 额度在上方各自管理。')),
             sectionErrors.autonomy ? h('p', { className: 'dfy-notice dfy-warning', role: 'alert' }, sectionErrors.autonomy) : null,
             data.autonomy.running || checkingNow ? h('button', { type: 'button', className: 'dfy-button', disabled: cancelBlocked || cancellingActivity,
               onClick: cancelActivity }, cancellingActivity ? '正在停止自主活动…' : '停止当前自主活动') : null,
-            h('p', { className: 'dfy-hint' }, '检查并开始一次会创建新的自主活动，按已保存的范围、Token 和娱乐时间额度记账；不会提前或重做旧计划。不会替你开启首次问候；问候仅在你已单独允许时发送。'),
+            h('p', { className: 'dfy-hint' }, '手动发起一次自主活动，按已保存的额度记账。'),
             button(checkingNow ? '正在检查并进行一次活动…' : '检查并开始一次活动', () => act('autonomy-check-now'), !canCheckNow()),
             autonomyDraftDirty ? h('p', { className: 'dfy-hint' }, '请先保存或撤销自主活动范围草稿，再开始一次新活动。') : null,
             h('div', { className: 'dfy-sub', 'aria-label': '当前等待原因' }, h('h4', null, '当前等待原因'),
@@ -3486,8 +3483,6 @@ window.__ModuleLoader__.load({
         const identity = account?.identities?.find((candidate) => candidate.id === item.scope.identityId);
         return name + ' · ' + (identity?.name || '其他身份');
       };
-      const provenanceLabel = (item) => item.provenance?.type === 'inference' ? '推测'
-        : item.provenance?.type === 'user_explicit' ? '用户明确告知' : '旧记录，来源未进一步确认';
       const items = snapshot?.items || [];
       const scopeVariety = new Set(items.map(contextLabel)).size > 1;
       const editorField = (item, key, label, multiline, maxLength) => {
@@ -3515,10 +3510,7 @@ window.__ModuleLoader__.load({
           writeBlocked ? h('p', { className: 'dfy-hint' }, '当前有任务处理或配置待应用；草稿会保留，稍后再保存。') : null,
           h('div', { className: 'dfy-inline-actions', style: { marginTop: 12 } },
             h('button', { type: 'button', className: 'dfy-button dfy-primary', disabled: Boolean(busy) || writeBlocked || !dirty || conflict, onClick: () => mutate('correct', item) }, busy === 'correct' ? '保存中…' : '保存纠正'),
-            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || item.status === 'forgotten', onClick: () => mutate('forget', item) }, '不再记住'),
-            h('span', { className: 'dfy-hint', style: { alignSelf: 'center', margin: 0 } }, '不再记住后，历史聊天和备份仍会保留。')),
-          h('p', { className: 'dfy-meta', style: { marginTop: 14 } }, contextLabel(item), ' · 来源：', item.source || '未确认', ' · ', provenanceLabel(item),
-            item.history?.length ? ' · ' + item.history.length + ' 次修改' : ''),
+            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || item.status === 'forgotten', onClick: () => mutate('forget', item) }, '不再记住')),
           h('div', { className: 'dfy-inline-actions', style: { marginTop: 6 } },
             dirty ? h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy), onClick: () =>
               setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: entry.base } })) }, '放弃修改') : null,
