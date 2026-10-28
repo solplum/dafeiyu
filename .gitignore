@@ -43,3 +43,4 @@ assets/video/
 
 # 本地安全扫描产物
 .mimosa/
+tests/fullflow/reports/
