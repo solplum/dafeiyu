@@ -45,7 +45,7 @@ export class OneBot {
    * @param {string} [opts.accessToken]
    * @param {(msg:object)=>void} [opts.onMessage]
    */
-  constructor({ wsUrl, httpUrl, accessToken = '', onMessage }) {
+  constructor({ wsUrl, httpUrl, accessToken = '', onMessage, WebSocketImpl }) {
     this.wsUrl = wsUrl;
     this.httpUrl = (httpUrl || '').replace(/\/+$/, '');
     this.accessToken = accessToken;
@@ -53,6 +53,9 @@ export class OneBot {
     this.selfId = '';
     this.ws = null;
     this.connected = false;
+    this.stopped = false;
+    this.reconnectTimer = null;
+    this.WebSocketImpl = WebSocketImpl;
     this.#connect();
   }
 
@@ -63,22 +66,46 @@ export class OneBot {
   }
 
   async #connect() {
-    const { WebSocket } = await import('ws').catch(() => ({ WebSocket: globalThis.WebSocket }));
-    const sock = new WebSocket(this.wsUrl, { headers: this.#headers() });
-    this.ws = sock;
-
-    sock.on?.('open', () => { this.connected = true; console.log('[onebot] 已连接 ' + this.wsUrl); });
-    sock.on?.('close', () => {
+    if (this.stopped) return;
+    try {
+      const WebSocket = this.WebSocketImpl || (await import('ws').catch(() => ({}))).WebSocket || globalThis.WebSocket;
+      if (this.stopped) return;
+      if (!WebSocket) throw new Error('请安装 ws 依赖，或使用支持 WebSocket 的 Node 版本');
+      const nodeStyle = typeof WebSocket.prototype?.on === 'function';
+      if (!nodeStyle && this.accessToken) throw new Error('带令牌的 OneBot WebSocket 需要安装 ws 依赖');
+      const sock = nodeStyle ? new WebSocket(this.wsUrl, { headers: this.#headers() }) : new WebSocket(this.wsUrl);
+      this.ws = sock;
+      const listen = (event, fn) => nodeStyle ? sock.on(event, fn) : sock.addEventListener(event, fn);
+      listen('open', () => { if (!this.stopped && this.ws === sock) { this.connected = true; console.log('[onebot] 已连接'); } });
+      listen('close', () => {
+      if (this.stopped || this.ws !== sock) return;
       this.connected = false;
+      this.ws = null;
       console.log('[onebot] 断开，5 秒后重连');
-      setTimeout(() => this.#connect(), 5000);
+      this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.#connect(); }, 5000);
+      this.reconnectTimer.unref?.();
     });
-    sock.on?.('error', (e) => console.log('[onebot] 出错 ' + (e?.message || e)));
-    sock.on?.('message', (data) => {
+    listen('error', (e) => console.log('[onebot] 出错 ' + (e?.message || 'WebSocket 错误')));
+    listen('message', (data) => {
+      if (this.stopped || this.ws !== sock) return;
       let ev;
-      try { ev = JSON.parse(String(data)); } catch { return; }
+      try { ev = JSON.parse(String(data?.data !== undefined ? data.data : data)); } catch { return; }
       this.#handle(ev);
     });
+    } catch (error) {
+      this.lastError = error?.message || String(error);
+      console.error('[onebot] 连接失败 ' + this.lastError);
+    }
+  }
+
+  close() {
+    this.stopped = true;
+    this.connected = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    const socket = this.ws;
+    this.ws = null;
+    try { socket?.close?.(); } catch {}
   }
 
   #handle(ev) {
@@ -88,6 +115,7 @@ export class OneBot {
     }
     if (ev.post_type !== 'message') return;
     if (ev.self_id) this.selfId = String(ev.self_id);
+    if (String(ev.user_id) === this.selfId) return;
 
     const isGroup = ev.message_type === 'group';
     const segs = ev.message;
@@ -109,11 +137,17 @@ export class OneBot {
       messageId: String(ev.message_id || ''),
       time: (ev.time || Math.floor(Date.now() / 1000)) * 1000,
     };
-    this.onMessage?.(msg);
+    Promise.resolve().then(async () => {
+      // A reply segment identifies a message, not its sender. Resolve only this
+      // read-only lookup before the waker decides whether the quote addresses us.
+      if (isGroup && replyId && !atMe && this.selfId) msg.isQuoteMe = (await this.whoSent(replyId)) === this.selfId;
+      if (!this.stopped) return this.onMessage?.(msg);
+    }).catch((e) => console.error('[onebot] 消息处理失败 ' + (e?.message || e)));
   }
 
   /** 调 OneBot 的 HTTP API */
   async api(action, params = {}) {
+    if (this.stopped) return { ok: false, error: 'OneBot 已停止' };
     if (!this.httpUrl) return { ok: false, error: '没配 httpUrl' };
     try {
       const r = await fetch(this.httpUrl + '/' + action, {
@@ -123,8 +157,10 @@ export class OneBot {
         signal: AbortSignal.timeout(30000),
       });
       const t = await r.text();
-      let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
-      return { ok: r.ok && j.status !== 'failed', data: j, error: j.message || j.wording };
+      let j; try { j = JSON.parse(t); } catch { return { ok: false, error: 'OneBot 返回无效 JSON' }; }
+      const valid = j && typeof j === 'object' && !Array.isArray(j) && ('status' in j || 'retcode' in j);
+      const ok = Boolean(r.ok && valid && j.status !== 'failed' && Number(j.retcode ?? 0) === 0);
+      return { ok, data: j, error: ok ? undefined : j?.message || j?.wording || 'OneBot 请求失败' };
     } catch (e) {
       return { ok: false, error: String(e.message || e) };
     }
@@ -137,8 +173,8 @@ export class OneBot {
     let message = String(text);
     if (atUserId) message = '[CQ:at,qq=' + atUserId + '] ' + message;
     return isGroup
-      ? this.api('send_group_msg', { group_id: id, message })
-      : this.api('send_private_msg', { user_id: id, message });
+      ? this.api('send_group_msg', { group_id: id, message, auto_escape: !atUserId })
+      : this.api('send_private_msg', { user_id: id, message, auto_escape: !atUserId });
   }
 
   /** 发一张图（本地文件或 URL） */

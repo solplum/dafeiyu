@@ -39,10 +39,19 @@ export class Memory {
 
   // ── 底层读写 ────────────────────────────────────────────────
   #readAll() {
-    try { return JSON.parse(fs.readFileSync(this.peopleFile, 'utf8')); } catch { return {}; }
+    let raw;
+    try { raw = fs.readFileSync(this.peopleFile, 'utf8'); }
+    catch (error) { if (error.code === 'ENOENT') return {}; throw error; }
+    const all = JSON.parse(raw);
+    if (!all || typeof all !== 'object' || Array.isArray(all)) throw new Error('记忆账本格式无效');
+    return all;
   }
   #writeAll(j) {
-    fs.writeFileSync(this.peopleFile, JSON.stringify(j, null, 2), 'utf8');
+    const temporary = this.peopleFile + '.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp';
+    try {
+      fs.writeFileSync(temporary, JSON.stringify(j, null, 2), { encoding: 'utf8', mode: 0o600 });
+      fs.renameSync(temporary, this.peopleFile);
+    } finally { fs.rmSync(temporary, { force: true }); }
   }
 
   /** 取某个人的账（不存在就建） */
@@ -136,7 +145,7 @@ export class Memory {
   }
 
   /** 取最近 n 轮（可按来源过滤） */
-  recentTurns(n = 20, { excludeWhere, sinceMs } = {}) {
+  recentTurns(n = 20, { excludeWhere, sinceMs, allowedWhere } = {}) {
     let rows = [];
     try {
       rows = fs.readFileSync(this.turnsFile, 'utf8').trim().split('\n')
@@ -144,7 +153,8 @@ export class Memory {
         .filter(Boolean);
     } catch { return []; }
     if (sinceMs) rows = rows.filter((r) => Date.now() - r.t < sinceMs);
-    if (excludeWhere) rows = rows.filter((r) => !String(r.where || '').startsWith(excludeWhere));
+    if (excludeWhere) rows = rows.filter((r) => String(r.where || '') !== excludeWhere);
+    if (allowedWhere) rows = rows.filter((r) => allowedWhere.includes(String(r.where || '')));
     return rows.slice(-n);
   }
 

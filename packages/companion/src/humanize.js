@@ -112,9 +112,15 @@ export class Humanizer {
     const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
     const parts = Array.isArray(text) ? text.map((s) => String(s)) : this.split(text);
     if (!parts.length) return { sent: 0, parts: [] };
+    const deliver = async (part) => {
+      const result = await send(part);
+      if (result === false || result?.ok === false) {
+        throw new Error(result?.error || '消息发送失败');
+      }
+    };
 
     if (!this.enabled) {
-      for (const p of parts) await send(p);
+      for (const p of parts) await deliver(p);
       return { sent: parts.length, parts };
     }
 
@@ -126,7 +132,7 @@ export class Humanizer {
       await wait(this.typingMsFor(p));
       if (setTyping) { try { await setTyping(false); } catch {} }
       // 2) 发出去
-      await send(p);
+      await deliver(p);
       sent++;
       // 3) 条间停顿
       if (i < parts.length - 1) await wait(this.gapMs());

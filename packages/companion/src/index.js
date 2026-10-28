@@ -37,9 +37,9 @@ export function loadConfig(explicitPath) {
   const rel = (p, def) => (p ? path.resolve(dir, p) : path.join(dir, def));
 
   return {
-    apiKey: cfg.apiKey || process.env.DEEPSEEK_API_KEY || '',
-    baseUrl: cfg.baseUrl || 'https://api.deepseek.com/v1',
-    model: cfg.model || 'deepseek-chat',
+    apiKey: process.env.MINIMAX_API_KEY || process.env.DEEPSEEK_API_KEY || cfg.apiKey || '',
+    baseUrl: cfg.baseUrl || (cfg.apiKey?.startsWith('sk-cp-') ? 'https://api.minimax.chat/v1' : 'https://api.deepseek.com/v1'),
+    model: cfg.model || (cfg.apiKey?.startsWith('sk-cp-') ? 'MiniMax-Text-01' : 'deepseek-chat'),
 
     roleCard: rel(cfg.roleCard, 'role.md'),
     roleMaxChars: cfg.roleMaxChars || 12000,
@@ -95,7 +95,7 @@ async function main() {
   if (process.argv.includes('--check')) { console.log('检查完毕。'); return; }
   if (!cfg.apiKey) console.log('⚠️ 没配 apiKey，模型调用会失败\n');
 
-  const brain = new Brain({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model: cfg.model, role, memory });
+  const brain = new Brain({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model: cfg.model, role, memory, ownerIds: cfg.ownerIds });
   const human = new Humanizer(cfg.humanize);
   const waker = new Waker({
     names: cfg.names,
@@ -107,6 +107,16 @@ async function main() {
 
   /** @type {Map<string, NodeJS.Timeout>} 每个会话的合并定时器 */
   const pending = new Map();
+  const running = new Map();
+  const runBatch = (key, items) => {
+    if (!items.length) return;
+    const previous = running.get(key) || Promise.resolve();
+    const task = previous.catch(() => {}).then(() => handleTurn({ bot, brain, human, memory, waker }, items, cfg));
+    running.set(key, task);
+    task.catch((e) => console.error('[出错] ' + (e?.message || e))).finally(() => {
+      if (running.get(key) === task) running.delete(key);
+    });
+  };
 
   const bot = new OneBot({
     ...cfg.onebot,
@@ -135,13 +145,18 @@ async function main() {
 
       // 合并窗口：等人把话说完
       const win = msg.isGroup ? cfg.wake.groupWindowMs : cfg.wake.privateWindowMs;
-      clearTimeout(pending.get(msg.key));
-      waker.batch(msg);
-      pending.set(msg.key, setTimeout(() => {
-        const items = waker.flush(msg.key);
-        if (!items.length) return;
-        handleTurn({ bot, brain, human, memory, waker }, items, cfg)
-          .catch((e) => console.error('[出错] ' + (e?.message || e)));
+      const bufferKey = msg.isGroup ? msg.key + ':user:' + msg.userId : msg.key;
+      clearTimeout(pending.get(bufferKey));
+      const batch = waker.batch(msg, { key: bufferKey });
+      if (batch.ready) {
+        pending.delete(bufferKey);
+        runBatch(msg.key, batch.batch);
+        return;
+      }
+      pending.set(bufferKey, setTimeout(() => {
+        pending.delete(bufferKey);
+        const items = waker.flush(bufferKey);
+        runBatch(msg.key, items);
       }, win));
     },
   });
@@ -162,7 +177,9 @@ export async function handleTurn({ bot, brain, human, memory, waker }, items, cf
     ? '你在一个 QQ 群里。下面是群里刚连着说的几句话，最后一条是最新的。'
     : '你在跟 ' + last.name + ' 私聊。';
 
-  const { text: out } = await brain.reply({ key, userId: last.userId, userName: last.name, text, situation });
+  const input = { key, userId: last.userId, userName: last.name, text, situation, isGroup: last.isGroup,
+    isOwner: (cfg.ownerIds || []).includes(String(last.userId)), record: false };
+  const { text: out } = await brain.reply(input);
   if (!out) { console.log('   （没说话）'); return; }
 
   if (cfg.dryRun) { console.log('   [干跑] 会说：' + out); return; }
@@ -172,8 +189,8 @@ export async function handleTurn({ bot, brain, human, memory, waker }, items, cf
     send: (m) => bot.send(key, m),
   });
   console.log('   发出 ' + r.sent + ' 条：' + r.parts.map((p) => p.slice(0, 18)).join(' | '));
+  brain.recordReply?.(input, out);
   waker.wake(key);
-  memory.touch(last.userId, { name: last.name });
 }
 
 // 直接跑才启动；被 import 时不启动

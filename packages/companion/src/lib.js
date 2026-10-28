@@ -33,6 +33,7 @@
 export { Memory } from './memory.js';
 export { Role } from './role.js';
 export { Brain } from './brain.js';
+export { runToolLoop, validateToolArguments } from './tool-loop.js';
 export { Humanizer } from './humanize.js';
 export { Waker } from './wake.js';
 export { Diary } from './diary.js';

@@ -146,8 +146,7 @@ export class Waker {
    *
    * @returns {{ready:boolean, batch:object[]}}
    */
-  batch(msg) {
-    const key = msg.key;
+  batch(msg, { key = msg.key } = {}) {
     let b = this.buffers.get(key);
     if (!b) { b = { items: [], timer: null }; this.buffers.set(key, b); }
     b.items.push(msg);
