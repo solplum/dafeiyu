@@ -112,10 +112,6 @@ function fixture({ model = { providers: [], writable: false, speech: { providers
       else if (route === 'model/status') value = { ok: true, model };
       else if (route === 'voice/status') value = { ok: true, voice: { config: { revision: 'voice-1',
         saved: { ttsProvider: 'macos', voiceReplyEnabled: false } }, runtime: { enabled: false } } };
-      else if (route === 'memory/clear') {
-        const cleared = memoryItems.length; memoryItems.length = 0; memoryRevision = (++memorySerial).toString(16).padStart(64, '0');
-        value = { ok: true, memory: { ok: true, cleared, revision: memoryRevision, note: '已清空 ' + cleared + ' 条记忆；原文已自动备份。' } };
-      }
       else if (route.startsWith('memory?')) {
         const params = new URLSearchParams(route.split('?')[1]);
         const items = memoryItems.filter((item) => !params.get('query') || (item.summary + item.detail).includes(params.get('query')));
@@ -996,20 +992,6 @@ test('memory editor reads provenance and scope, preserves CAS drafts, and explic
   await f.click('撤销修改'); assert.equal(f.memoryItems[0].summary, '外部更新的摘要'); assert.equal(f.memoryItems[0].detail, '日常喜欢喝热茶。');
   assert(f.nodes().some((node) => node.type === 'button' && f.text(node) === '撤销修改' && node.props.disabled), 'restore disables once history is empty');
   assert.equal(f.calls.filter((call) => ['config', 'apply', 'dependencies/action', 'model/test', 'phone/check'].includes(call.route)).length, 0);
-});
-
-test('clearing all memories requires a second confirming click and then empties the list', async (t) => {
-  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('记忆');
-  assert.ok(f.text().includes('共 1 条'));
-  await f.click('清空全部记忆');
-  assert(f.text().includes('再点一次确认清空'), 'the first click only arms the confirmation');
-  assert.equal(f.calls.some((call) => call.route === 'memory/clear'), false, 'nothing is sent on the first click');
-  await f.click('再点一次确认清空全部（原文会自动备份）');
-  const clearCall = f.calls.find((call) => call.route === 'memory/clear');
-  assert.equal(clearCall.method, 'POST');
-  assert.ok(f.text().includes('已清空 1 条记忆'));
-  assert(f.text().includes('没有找到记忆'), 'the list is empty afterwards');
-  assert.equal(f.button('清空全部记忆'), undefined, 'the entry point hides itself on an empty list');
 });
 
 test('memory list distinguishes named chat identities and unknown owners without exposing raw identifiers', async (t) => {

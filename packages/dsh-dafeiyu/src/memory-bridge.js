@@ -45,10 +45,6 @@ export class MemoryBridge {
     return this.#records('fact').filter((record) => record.source === 'memory/facts.json');
   }
 
-  clearAll(_input = {}, { authorize = () => true } = {}) {
-    // ledger.clear 自带写锁，这里再套一层会重入成 BUSY。
-    return this.ledger.clear({ authorize });
-  }
 
   #withWriteLock(write) {
     return this.ledger.withLock(write);
