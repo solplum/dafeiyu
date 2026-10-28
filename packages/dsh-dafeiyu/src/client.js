@@ -3572,6 +3572,7 @@ window.__ModuleLoader__.load({
       const [resourceRefreshKey, setResourceRefreshKey] = useState(0);
       const [operation, setOperation] = useState('');
       const [queuedApply, setQueuedApply] = useState(false);
+      const deferredApply = useRef(false);
       const [error, setError] = useState(null);
       const [notice, setNotice] = useState('');
       const [updatedAt, setUpdatedAt] = useState('');
@@ -3839,7 +3840,8 @@ window.__ModuleLoader__.load({
             saved = true;
           }
           if (personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty) {
-            if (live.current) setNotice('配置已保存。其他页面还有独立草稿，先保存它们，再点「生效」。');
+            deferredApply.current = true;
+            if (live.current) setNotice('配置已保存。其他页面还有独立草稿，存完它们会自动生效。');
           } else if (live.current && snapshot.canApply) {
             await request('apply', 'POST', {});
             let state;
@@ -3875,6 +3877,17 @@ window.__ModuleLoader__.load({
           || latest.current.snapshot?.config?.requiresReload;
         if (stillPending) save();
       }, [queuedApply, runtime.busy, capabilitiesBusy]);
+      // 用户已明确点过「保存」、只因子面板草稿推迟时：最后一个子面板存完自动生效。
+      useEffect(() => {
+        if (!deferredApply.current || !live.current || lock.current || capabilitiesBusy) return;
+        const snap = latest.current.snapshot;
+        if (!snap?.canApply || !(snap.pendingReload || snap.config?.requiresReload)) { deferredApply.current = false; return; }
+        if (latest.current.dirty || latest.current.personaDirty || latest.current.modelDirty || latest.current.voiceDirty
+          || latest.current.speechDirty || latest.current.galleryDirty || latest.current.memoryDirty || latest.current.lifeDirty
+          || snap.runtime?.busy === true) return;
+        deferredApply.current = false;
+        save();
+      }, [pendingReload, dirty, personaDirty, modelDirty, voiceDirty, speechDirty, galleryDirty, memoryDirty, lifeDirty, runtime.busy, capabilitiesBusy]);
       function tag(key) {
         return overridden.includes(key) ? h('span', { className: 'dfy-badge' }, '由 DSH 管理') : null;
       }
@@ -4185,11 +4198,11 @@ window.__ModuleLoader__.load({
                   : key === 'memes' ? h(GalleryPanel, { active: tab === 'memes', onDirtyChange: setGalleryDirty })
                     : key === 'life' ? h(LifePanel, { active: tab === 'life', accounts: runningAccounts.length ? runningAccounts : editedAccounts,
                       ownerQq: String(value('ownerQq') || ''), onManageAccounts: () => selectTab('accounts'), onDirtyChange: setLifeDirty,
-                      writeBlocked: blocked || runtime.busy === true || runtime.applying === true || pendingReload || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
-                      revokeBlocked: blocked || runtime.applying === true || pendingReload || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
+                      writeBlocked: blocked || runtime.busy === true || runtime.applying === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
+                      revokeBlocked: blocked || runtime.applying === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
                       cancelBlocked: blocked || runtime.applying === true })
                     : key === 'memory' ? h(MemoryPanel, { active: tab === 'memory', onDirtyChange: setMemoryDirty, accounts: runningAccounts.length ? runningAccounts : editedAccounts,
-                      writeBlocked: blocked || runtime.busy === true || pendingReload || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty })
+                      writeBlocked: blocked || runtime.busy === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty })
                       : h(PersonaPanel, { onDirtyChange: setPersonaDirty }) : null;
       const activeGroup = tabGroups.find((group) => group.id === tab || group.children.includes(tab));
       const groupIds = tabGroups.map((group) => group.id);

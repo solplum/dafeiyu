@@ -507,6 +507,21 @@ test('applying a fresh configuration draft shows the temporary QQ interruption b
   assert.equal(f.calls.filter((call) => call.method === 'POST').length, 0);
 });
 
+test('saving with a child draft defers the apply; it fires automatically once the child draft is saved', async (t) => {
+  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('手机');
+  await f.change('-phoneDevice', 'fixture-phone:5555'); await f.click('记忆');
+  f.nodes().find((node) => node.props['data-memory-id'] === 'fact-fixture').props.onClick(); await f.flush();
+  await f.change('-detail', '自动生效前的记忆草稿。');
+  await f.click('保存');
+  assert(f.text().includes('自动生效'), 'the deferred apply intent is visible');
+  assert.equal(f.calls.some((call) => call.route === 'apply'), false, 'nothing applies while the child draft remains');
+  await f.click('保存记忆纠正');
+  assert.equal(f.calls.filter((call) => call.route === 'apply').length, 1,
+    'the deferred apply fires automatically after the child draft is saved');
+  assert.equal(f.state.pendingReload, false);
+  assert.equal(f.text().includes('自动生效'), false, 'the deferral notice clears once applied');
+});
+
 test('implicit root form submission preserves unrelated drafts and only the explicit save action persists connection settings', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('手机');
   await f.change('-phoneDevice', 'fixture-phone:5555'); await f.click('记忆');
