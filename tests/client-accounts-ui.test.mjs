@@ -881,7 +881,7 @@ test('context pause classifications and protection status are visible while fres
     contextConversation({ qq: '790', identityId: 'b', identityName: 'B', failureType: 'context_guard_unavailable' }),
     contextConversation({ qq: '791', identityId: 'c', identityName: 'C', failureType: 'delivery_unknown' })];
   await f.flush();
-  for (const text of ['上下文接近容量保护线，已暂停', '上下文压缩未完成，已暂停', '上下文容量暂时无法确认，已暂停', '原请求与排队消息都不会重跑']) {
+  for (const text of ['聊得太长，先自动暂停了；去首页「长对话恢复」可让她继续', '上下文压缩未完成，已暂停', '上下文容量暂时无法确认，已暂停', '原请求与排队消息都不会重跑']) {
     assert.ok(f.text().includes(text), text);
   }
   const fresh = f.nodes().filter(node => node.props['aria-label']?.startsWith('新会话继续 '));

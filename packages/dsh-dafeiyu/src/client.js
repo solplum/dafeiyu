@@ -308,7 +308,7 @@ window.__ModuleLoader__.load({
       latest.current = { active, controlBlocked, snapshot, selected, preview, acknowledged };
       const current = (stamp) => api.alive.current && latest.current.active && epoch.current === stamp;
       const accept = (value) => {
-        if (!value || !Array.isArray(value.sessions) || typeof value.revision !== 'string') throw new Error('会话状态未完整返回，请刷新核对。');
+        if (!value || !Array.isArray(value.sessions) || typeof value.revision !== 'string') throw new Error('对话状态没读全，重新查看一次。');
         setSnapshot(value); setPreview(null); setAcknowledged(false);
         setSelected((previous) => value.sessions.some(row => row.sessionId === previous) ? previous
           : value.sessions.find(row => row.paused === true)?.sessionId || value.sessions[0]?.sessionId || '');
@@ -334,7 +334,7 @@ window.__ModuleLoader__.load({
             const next = result.desktopContext;
             if (!next || next.sessionId !== row.sessionId || typeof next.previewId !== 'string' || next.allowed !== true
               || !Number.isSafeInteger(next.totalTokens) || !Number.isSafeInteger(next.limitTokens) || next.totalTokens > next.limitTokens)
-              throw new Error('容量检查未通过，仍保持暂停。请刷新状态核对。');
+              throw new Error('检查没通过，先保持暂停。重新查看一次再试。');
             setPreview(next);
           }
         } catch (error) { if (current(stamp)) setFailure(resourceError(error)); }
@@ -350,8 +350,8 @@ window.__ModuleLoader__.load({
             previewId: checked.previewId, acknowledgeNoReplay: true });
           if (current(stamp)) {
             if (result.desktopContext?.recovered !== true || result.desktopContext?.automaticReplay !== false)
-              throw new Error('恢复结果未确认，请刷新状态核对；不要重复提交。');
-            setNotice('已设置本会话的回复上限，并恢复接收新请求。此前请求没有重跑。');
+              throw new Error('没确认她是否已恢复。先点「查看对话」核对，别重复点。');
+            setNotice('她已恢复回复。每次回复的长度已设上限；之前那条没回的不会自动补发。');
             setSnapshot((previous) => previous ? { ...previous, sessions: previous.sessions.map(item => item.sessionId === row.sessionId
               ? { ...item, paused: false, maxTokens: result.desktopContext.maxTokens } : item) } : previous);
           }
@@ -359,27 +359,27 @@ window.__ModuleLoader__.load({
         finally { if (epoch.current === stamp) { lock.current = false; if (api.alive.current) setBusy(''); } }
       }
       const rows = snapshot?.sessions || [], row = rows.find(item => item.sessionId === selected);
-      return h('section', { className: 'dfy-section', 'aria-label': '桌面聊天容量与恢复' },
-        h(SectionHeading, { title: '桌面聊天容量', help: '只管理已授权的桌面聊天。先按较短回复上限检查完整请求容量，再明确恢复接收新请求；原请求不会自动重跑，也不会开启自主活动。' },
-          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || controlBlocked, onClick: refreshCapacity }, busy === 'read' ? '刷新中…' : '刷新容量状态')),
+      return h('section', { className: 'dfy-section', 'aria-label': '长对话恢复' },
+        h(SectionHeading, { title: '长对话恢复', help: '跟她在桌面窗口聊得太久、内容多到一次装不下时，她会先停下不回，这不是坏了。这里选中那个对话，先检查一次，再让她继续。之前没回的那条不会自动补发。' },
+          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || controlBlocked, onClick: refreshCapacity }, busy === 'read' ? '查看中…' : '查看对话')),
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert' }, failure) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status' }, notice) : null,
-        rows.length ? h('label', { className: 'dfy-field' }, '要处理的桌面聊天',
+        rows.length ? h('label', { className: 'dfy-field' }, '选一个对话',
           h('select', { value: selected, disabled: Boolean(busy) || controlBlocked,
             onChange: event => { if (lock.current || latest.current.controlBlocked) return; setSelected(event.target.value); setPreview(null); setAcknowledged(false); setNotice(''); } },
-          rows.map((item, index) => h('option', { key: item.sessionId, value: item.sessionId }, '桌面聊天 ' + (index + 1) + (item.paused ? ' · 已暂停' : ' · 可接收新请求')))))
-          : h('p', { className: 'dfy-hint' }, snapshot ? '当前没有可管理的已授权桌面聊天。' : '点击刷新容量状态，查看已授权的桌面聊天。'),
+          rows.map((item, index) => h('option', { key: item.sessionId, value: item.sessionId }, '对话 ' + (index + 1) + (item.paused ? ' · 已暂停' : ' · 正常')))))
+          : h('p', { className: 'dfy-hint' }, snapshot ? '这里没有她的桌面对话。' : '点「查看对话」看看有没有暂停的。'),
         row ? h(React.Fragment, null,
-          h('p', { className: 'dfy-meta' }, row.paused ? '已暂停，等待容量检查和本人确认。' : '当前可接收新请求。',
-            row.maxTokens ? ' 本会话回复上限：' + row.maxTokens + ' Token。' : ''),
+          h('p', { className: 'dfy-meta' }, row.paused ? '已暂停。先点下面的「先检查一下」，再让她继续。' : '正常回复中。',
+            row.maxTokens ? ' 继续后每次回复最多 ' + row.maxTokens + ' Token。' : ''),
           h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || controlBlocked || row.paused !== true || row.busy === true,
-            onClick: checkCapacity }, busy === 'preview' ? '检查容量中…' : '按短回复检查容量'),
+            onClick: checkCapacity }, busy === 'preview' ? '检查中…' : '先检查一下'),
           preview ? h('div', { className: 'dfy-notice', role: 'status' },
-            h('p', null, '完整请求估算 ', preview.totalTokens.toLocaleString(), '，保护线 ', preview.limitTokens.toLocaleString(), '。回复上限将设为 ', String(preview.maxTokens || 8192), ' Token；容量保护仍生效。'),
+            h('p', null, '检查结果：这个对话现在约 ', preview.totalTokens.toLocaleString(), ' Token，上限是 ', preview.limitTokens.toLocaleString(), '。让她继续后，每次回复会控制在 ', String(preview.maxTokens || 8192), ' Token 以内，快到上限时会再次自动暂停。'),
             h('label', { className: 'dfy-check' }, h('input', { type: 'checkbox', checked: acknowledged, disabled: Boolean(busy) || controlBlocked,
-              onChange: event => { if (!lock.current && !latest.current.controlBlocked) setAcknowledged(event.target.checked === true); } }), '我确认只接收新请求，不重跑此前请求'),
+              onChange: event => { if (!lock.current && !latest.current.controlBlocked) setAcknowledged(event.target.checked === true); } }), '我知道：她恢复后，之前那条没回的消息不会自动补回'),
             h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || controlBlocked || !acknowledged,
-              onClick: recoverCapacity }, busy === 'recover' ? '恢复中…' : '设置回复上限并恢复新请求')) : null) : null);
+              onClick: recoverCapacity }, busy === 'recover' ? '恢复中…' : '让她继续')) : null) : null);
     }
 
     function ModelPanel({ active, onDirtyChange, canRebind, onRebound }) {
@@ -1936,7 +1936,7 @@ window.__ModuleLoader__.load({
       unsupported_message: '这条消息含尚不支持或过大的内容，整条消息尚未处理；其中的文字命令也未执行。',
       image_unavailable: '图片已到 QQ，但当前图片通道或选中模型暂不能读取，尚未调用模型；不必反复重发，可暂用文字说明。',
       image_input_failed: '图片已到 QQ，但本次读取未完成，尚未调用模型；请查看图片接入状态，不必反复重发。',
-      model_failed: '模型处理失败', context_required: '上下文接近容量保护线，已暂停',
+      model_failed: '模型处理失败', context_required: '聊得太长，先自动暂停了；去首页「长对话恢复」可让她继续',
       context_compaction_failed: '上下文压缩未完成，已暂停', context_guard_unavailable: '上下文容量暂时无法确认，已暂停',
       timeout: '处理超时，执行结果未知', stopped: '已手动停止', send_failed: 'QQ 明确返回发送失败',
       delivery_unknown: 'QQ 送达结果未知', session_failed: '会话启动失败', identity_changed: '账号或身份已变化',

@@ -96,65 +96,65 @@ const posts = f => f.calls.filter(row => row.method === 'POST');
 test('desktop capacity opens with a metadata-only GET and never starts preview/recovery implicitly', async t => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush();
   assert.deepEqual(f.calls, [{ route: 'desktop-context/status', method: 'GET', payload: undefined }]);
-  assert.equal(f.button('按短回复检查容量').props.disabled, false); assert.equal(f.checkbox(), undefined);
+  assert.equal(f.button('先检查一下').props.disabled, false); assert.equal(f.checkbox(), undefined);
   assert(f.text().includes('已暂停')); assert.equal(posts(f).length, 0);
 });
 
 test('desktop preview pins the selected sequence and 8192 reply tokens; recovery needs explicit no-replay confirmation', async t => {
-  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('按短回复检查容量');
+  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('先检查一下');
   assert.deepEqual(posts(f)[0], { route: 'desktop-context/preview', method: 'POST', payload: { sessionId: ONE, expectedSeq: 7, maxTokens: 8192 } });
-  assert.equal(f.button('设置回复上限并恢复新请求').props.disabled, true);
-  f.button('设置回复上限并恢复新请求').props.onClick(); await f.flush(); assert.equal(posts(f).length, 1);
-  await f.acknowledge(); await f.click('设置回复上限并恢复新请求');
+  assert.equal(f.button('让她继续').props.disabled, true);
+  f.button('让她继续').props.onClick(); await f.flush(); assert.equal(posts(f).length, 1);
+  await f.acknowledge(); await f.click('让她继续');
   assert.deepEqual(posts(f)[1], { route: 'desktop-context/recover', method: 'POST', payload: { sessionId: ONE, previewId: PREVIEW, acknowledgeNoReplay: true } });
-  assert(f.text().includes('此前请求没有重跑')); assert.equal(f.button('按短回复检查容量').props.disabled, true);
+  assert(f.text().includes('不会自动补发')); assert.equal(f.button('先检查一下').props.disabled, true);
 });
 
 test('desktop recovery dispatches once even through a repeated old handler and consumes the preview on unknown result', async t => {
-  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('按短回复检查容量'); await f.acknowledge();
+  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('先检查一下'); await f.acknowledge();
   let release; f.setRecoverGate(new Promise(resolve => release = resolve));
-  f.failRecover({ ok: false, code: 'UNAVAILABLE', error: '恢复结果未确认，请刷新核对；不会自动重试。' });
-  const stale = f.button('设置回复上限并恢复新请求').props.onClick; stale(); stale(); await f.flush();
+  f.failRecover({ ok: false, code: 'UNAVAILABLE', error: '没确认她是否已恢复，重新查看一次；不会自动重试。' });
+  const stale = f.button('让她继续').props.onClick; stale(); stale(); await f.flush();
   assert.equal(posts(f).filter(row => row.route.endsWith('/recover')).length, 1);
   release(); await f.flush(); stale(); await f.flush();
   assert.equal(posts(f).filter(row => row.route.endsWith('/recover')).length, 1);
-  assert.equal(f.button('设置回复上限并恢复新请求'), undefined); assert(f.text().includes('恢复结果未确认'));
-  assert(!f.text().includes('此前请求没有重跑'));
+  assert.equal(f.button('让她继续'), undefined); assert(f.text().includes('没确认她是否已恢复'));
+  assert(!f.text().includes('不会自动补发'));
 });
 
 test('blocked or hidden desktop capacity handlers cannot submit old previews or recovery actions', async t => {
   for (const change of ['blocked', 'active']) {
     const f = fixture(); t.after(() => f.dispose()); await f.flush();
-    const check = f.button('按短回复检查容量').props.onClick;
-    await f.click('按短回复检查容量'); await f.acknowledge(); const recover = f.button('设置回复上限并恢复新请求').props.onClick;
+    const check = f.button('先检查一下').props.onClick;
+    await f.click('先检查一下'); await f.acknowledge(); const recover = f.button('让她继续').props.onClick;
     await f[change](change === 'blocked'); const before = posts(f).length;
     check(); recover(); await f.flush(); assert.equal(posts(f).length, before);
   }
 });
 
 test('changing target or refreshing clears desktop capacity preview and its checkbox', async t => {
-  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('按短回复检查容量'); await f.acknowledge();
-  const stale = f.button('设置回复上限并恢复新请求').props.onClick;
+  const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('先检查一下'); await f.acknowledge();
+  const stale = f.button('让她继续').props.onClick;
   await f.target(TWO); assert.equal(f.checkbox(), undefined); stale(); await f.flush();
-  assert.equal(posts(f).length, 1); await f.click('按短回复检查容量');
+  assert.equal(posts(f).length, 1); await f.click('先检查一下');
   assert.equal(posts(f).at(-1).payload.sessionId, TWO); assert.equal(posts(f).at(-1).payload.expectedSeq, 8);
-  await f.acknowledge(); await f.click('刷新容量状态');
-  assert.equal(f.checkbox(), undefined); assert.equal(f.button('设置回复上限并恢复新请求'), undefined);
+  await f.acknowledge(); await f.click('查看对话');
+  assert.equal(f.checkbox(), undefined); assert.equal(f.button('让她继续'), undefined);
 });
 
 test('late desktop capacity previews cannot revive controls after hiding or blocking', async t => {
   for (const change of ['active', 'blocked']) {
     const f = fixture(); t.after(() => f.dispose()); await f.flush(); let release;
-    f.setPreviewGate(new Promise(resolve => release = resolve)); await f.click('按短回复检查容量');
+    f.setPreviewGate(new Promise(resolve => release = resolve)); await f.click('先检查一下');
     await f[change](change === 'blocked'); release(); await f.flush();
-    assert.equal(f.checkbox(), undefined); assert.equal(f.button('设置回复上限并恢复新请求'), undefined);
+    assert.equal(f.checkbox(), undefined); assert.equal(f.button('让她继续'), undefined);
   }
 });
 
 test('mismatched desktop capacity targets and insufficient previews never offer recovery', async t => {
   for (const patch of [{ sessionId: TWO }, { allowed: false }, { totalTokens: 90001 }]) {
-    const f = fixture(); t.after(() => f.dispose()); f.preview(patch); await f.flush(); await f.click('按短回复检查容量');
-    assert.equal(f.checkbox(), undefined); assert.equal(f.button('设置回复上限并恢复新请求'), undefined);
-    assert(f.text().includes('容量检查未通过')); assert.equal(posts(f).length, 1);
+    const f = fixture(); t.after(() => f.dispose()); f.preview(patch); await f.flush(); await f.click('先检查一下');
+    assert.equal(f.checkbox(), undefined); assert.equal(f.button('让她继续'), undefined);
+    assert(f.text().includes('检查没通过')); assert.equal(posts(f).length, 1);
   }
 });
