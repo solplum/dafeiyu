@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "kind": "reviewed-local-helper-override",
+  "upstream": {
+    "name": "@anionex/dsh-computer-use",
+    "version": "0.3.4",
+    "sourceSha256": "122ee568fecdd4b09850dbdb771155e27a44d5c89f2e0ffe1243f39541daa532",
+    "packagedBinarySha256": "b1369bc511084958d70fa5bb9f61ba4bebf62b268d4185169b52b78a27b529b2"
+  },
+  "helperVersion": "0.3.4",
+  "preparedVersionLabel": "external",
+  "healthHelperVersion": "0.3.4",
+  "sourceSha256": "b4ff958865154b0d40e80987b825130fa11476e5d0231738a46fa53477a26cea",
+  "patchSha256": "6ef8a24b980b06d0027d2c3b57bac6e837ab78365627dba48210ba9ece75a233",
+  "binary": {
+    "path": "bin/dsh-computer-use-helper",
+    "sha256": "20595d59b1f95764738a01ca6b626fc4f6211a3b0c4cc8153feb54065c85d330",
+    "architectures": [
+      "arm64"
+    ],
+    "minimumMacOS": "14.0",
+    "mode": "0700"
+  },
+  "change": "keyboardPolicy=activate bypasses AXSelectedText shortcuts. One Unicode scalar per targeted down/up pair (<=2 UTF16), empty flags, 5ms before release and 15ms after release. No replay. Preserve policy remains AX-first.",
+  "validation": {
+    "compiled": true,
+    "adHocCodeSignatureVerified": true,
+    "upstreamSourceUnchanged": true,
+    "helperExecuted": false,
+    "guiInputVerified": false,
+    "algorithmTests": {
+      "ok": true,
+      "cases": 7,
+      "guiExecuted": false
+    }
+  },
+  "integration": {
+    "configField": "helper.path",
+    "value": "bin/dsh-computer-use-helper",
+    "requiresPreApplyDigestCheck": true,
+    "providerManifestAppliesToExternalOverride": false,
+    "changesActiveProfile": false
+  },
+  "commands": [
+    [
+      "<build-paths-recorded-in-original-audit>"
+    ]
+  ],
+  "runtimeAcceptance": {
+    "at": "2026-10-24T11:34:16.824Z",
+    "scope": "dsh-window",
+    "fullNonceInput": true,
+    "verificationButtonClicks": 1,
+    "readbackMatched": true,
+    "evidence": "actual registered DSH ToolRuntime and independent CUA readback"
+  }
+}

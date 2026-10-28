@@ -1,0 +1,15 @@
+{
+  "version": "0.9.2-dfy.1",
+  "sha256": {
+    "package.json": "86a39cdcb3c7cc75466a123e60140993040da01ad54c0031e60b48ff14cfec31",
+    "dsh-plugin.json": "add2c3c71131e690fcf3baa63119fb38f0b6c0f33137471b01421f2b0191e437",
+    "cordis.patch.yml": "1f2f521e262bfbf4dc2f662f60e86eb8f0eecfb56dfdc0e9f8508fc1614e3d1c",
+    "lib/index.js": "f1b3baa3949cab12e0140877dd4a0a11e41af33cf14977a184071c4c3e3aeceb",
+    "lib/dfy-policy.js": "5688b16fa24246c20c8592ccef0c9b914b60e16f81e01e66b54c78d45750044f",
+    "lib/worker-auth.js": "9a6156435972d390ebc8c90d952660936efb7bcc699a1d6cf2fe2437b9fc2f67",
+    "runtime/ego-linux/bin/ego-browser.mjs": "0d6d31e932f27bed3770a8bfc6b884d08aa6200a13f5d07b1ddeedd1da2d3b8f",
+    "runtime/ego-linux/src/chrome.mjs": "256d1061b928da80ada829c1ebf9894d20511f646b828b03a0e7480444eff208",
+    "bin/ego-chrome-wrapper.sh": "a1d23e607c9c28075d0f504381e6b48321fde8dd73e8458b218434d3b34cd44e",
+    "bin/ego-cast-worker.mjs": "c0f2174b71655788558720e56844317e4dacc33b4552fd07cd940cde7d12b42b"
+  }
+}

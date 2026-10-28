@@ -1,0 +1,736 @@
+--- upstream/package.json
++++ managed/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "dsh-ego-browser",
+-  "version": "0.9.2",
++  "version": "0.9.2-dfy.1",
+   "description": "ego-browser (ego-lite) integration plugin for DSH: structured browser-automation tools (30+ ego_*) that drive the vendored ego runtime through ctx.subprocess, plus a realtime watch panel (live SSE screencast + direct mouse interaction + download capture + human-verification notice). Web shell: native right sidebar tab when DSH provides one (0.2.1+), else dsh-better-sidebar, else a floating watch panel. TUI hosts (optional services): settings page, activity status bar, side panel with page thumbnails. Headless hosts: tools-only. [0.1.2-rc.1: verified compatible with DSH v0.1.2-rc.1 and v0.1.3-alpha.1]",
+   "type": "module",
+   "main": "./lib/index.js",
+@@ -17,7 +17,10 @@
+     "cordis.patch.yml",
+     "dsh-plugin.json",
+     "THIRD_PARTY_NOTICES.md",
+-    "!**/*.map"
++    "!**/*.map",
++    "PROVENANCE.md",
++    "PATCHES.dfy.diff",
++    "lib/dfy-policy.js"
+   ],
+   "dsh": {
+     "engines": {
+@@ -36,7 +39,7 @@
+   },
+   "scripts": {
+     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+-    "test": "vitest run",
++    "test": "node --experimental-vm-modules --test test/managed-policy.test.mjs",
+     "build": "tsdown -c tsdown.config.ts"
+   },
+   "dependencies": {
+--- upstream/dsh-plugin.json
++++ managed/dsh-plugin.json
+@@ -2,7 +2,7 @@
+   "$schema": "https://dsh.community/schemas/dsh-plugin-0.15.json",
+   "id": "dsh-ego-browser",
+   "name": "ego-browser",
+-  "version": "0.9.2",
++  "version": "0.9.2-dfy.1",
+   "manifestVersion": "0.15",
+   "facets": {
+     "host": {
+--- upstream/cordis.patch.yml
++++ managed/cordis.patch.yml
+@@ -15,3 +15,11 @@
+ - insert:
+     - id: ego-browser
+       name: "dsh-ego-browser"
++      config:
++        chromePath: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
++        chromeArgs: ""
++        egoCliArgs: ""
++        captureBackend: cdp
++        isolateSpaces: true
++        residentExecutor: false
++        idleTimeoutMin: 0
+--- upstream/lib/index.js
++++ managed/lib/index.js
+@@ -1,4 +1,6 @@
+ import { defineTool } from "@deepseek-ai/dsh-tools";
++import { ownerRequestRejection, LOGIN_IMPORT_DISABLED, executionUnknown, executionError } from "./dfy-policy.js";
++import { WORKER_TOKEN_HEADER, validWorkerToken } from "./worker-auth.js";
+ import { constants, createReadStream, createWriteStream, existsSync, readdirSync } from "node:fs";
+ import { execFile, execFileSync, spawn } from "node:child_process";
+ import { homedir, tmpdir } from "node:os";
+@@ -422,6 +424,8 @@
+ }
+ const BATCH = 200;
+ async function importLoginCookies(opts, deps) {
++	return { ...LOGIN_IMPORT_DISABLED };
++	/* Upstream implementation retained below for provenance; unreachable. */
+ 	const timeoutMs = opts.timeoutMs ?? 2e4;
+ 	let browser;
+ 	if (opts.browserOverride) browser = opts.browserOverride;
+@@ -1469,10 +1473,15 @@
+ 	const stateHome = e.EGO_LINUX_STATE_DIR || (isWin ? e.LOCALAPPDATA || `${home}\\AppData\\Local` : e.XDG_STATE_HOME || `${home}/.local/state`);
+ 	return stateHome.endsWith("ego-lite-linux") ? `${stateHome}/ego-cast.json` : `${stateHome}/ego-lite-linux/ego-cast.json`;
+ }
++async function workerAuthHeaders(port) {
++	const state = await knownWorkerState();
++	if (state.port !== port || !validWorkerToken(state.token)) throw new Error("Managed worker credentials unavailable");
++	return { [WORKER_TOKEN_HEADER]: state.token };
++}
+ /** Proxy a worker loopback endpoint. Returns null when the worker is unreachable. */
+ async function proxyFrom(port, path) {
+ 	try {
+-		const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(4e3) });
++		const r = await fetch(`http://127.0.0.1:${port}${path}`, { headers: await workerAuthHeaders(port), signal: AbortSignal.timeout(4e3) });
+ 		if (!r.ok) return null;
+ 		return await r.json();
+ 	} catch {
+@@ -1484,7 +1493,7 @@
+ 	try {
+ 		const r = await fetch(`http://127.0.0.1:${port}${path}`, {
+ 			method: "POST",
+-			headers: { "content-type": "application/json" },
++			headers: { "content-type": "application/json", ...await workerAuthHeaders(port) },
+ 			body: JSON.stringify(body),
+ 			signal: AbortSignal.timeout(timeoutMs)
+ 		});
+@@ -1506,12 +1515,13 @@
+ 		const state = JSON.parse(await readFile(castStatePath(), "utf8"));
+ 		return {
+ 			port: typeof state.port === "number" ? state.port : null,
+-			pid: typeof state.pid === "number" ? state.pid : null
++			pid: typeof state.pid === "number" ? state.pid : null,
++			token: validWorkerToken(state.token) ? state.token : null
+ 		};
+ 	} catch {
+ 		return {
+ 			port: null,
+-			pid: null
++			pid: null, token: null
+ 		};
+ 	}
+ }
+@@ -1556,7 +1566,7 @@
+ 	let lastAttempt = 0;
+ 	async function launchedWorkerPort() {
+ 		const state = await knownWorkerState();
+-		if (state.pid === null || !isProcessAlive$1(state.pid)) return null;
++		if (state.pid === null || !validWorkerToken(state.token) || !isProcessAlive$1(state.pid)) return null;
+ 		return await proxyFrom(state.port, "/api/health") ? state.port : null;
+ 	}
+ 	return async function ensureWorker() {
+@@ -1640,7 +1650,7 @@
+ 			targetId,
+ 			maxWidth: String(maxWidth)
+ 		});
+-		const response = await fetch(`http://127.0.0.1:${port}/api/snapshot?${query}`, { signal: AbortSignal.timeout(15e3) });
++		const response = await fetch(`http://127.0.0.1:${port}/api/snapshot?${query}`, { headers: await workerAuthHeaders(port), signal: AbortSignal.timeout(15e3) });
+ 		if (!response.ok) return null;
+ 		return new Uint8Array(await response.arrayBuffer());
+ 	} catch {
+@@ -2121,13 +2131,16 @@
+ 			sseClients.delete(res);
+ 		};
+ 	}
+-	function attach(workerPort) {
++	async function attach(workerPort) {
++		let auth;
++		try { auth = await workerAuthHeaders(workerPort); } catch { endOnce(); return; }
++		if (cancelled || ended) return;
+ 		upstream = request({
+ 			host: "127.0.0.1",
+ 			port: workerPort,
+ 			path,
+ 			method: "GET",
+-			headers: { accept: "text/event-stream" }
++			headers: { accept: "text/event-stream", ...auth }
+ 		}, (upRes) => {
+ 			upRes.on("data", (chunk) => {
+ 				if (cancelled || ended) return;
+@@ -2165,7 +2178,7 @@
+ 		} catch {}
+ 	};
+ }
+-function proxyWorkerVideo(port, req, res) {
++async function proxyWorkerVideo(port, req, res) {
+ 	const generation = new URL(req.url || "/api/ego/video", "http://dsh.internal").searchParams.get("generation");
+ 	const path = `/api/video/stream${generation ? `?generation=${encodeURIComponent(generation)}` : ""}`;
+ 	let upstream;
+@@ -2177,12 +2190,14 @@
+ 			res.end();
+ 		} catch {}
+ 	};
++	let auth;
++	try { auth = await workerAuthHeaders(port); } catch { return sendJson(res, 502, { ok: false, error: "Managed worker credentials unavailable" }); }
+ 	upstream = request({
+ 		host: "127.0.0.1",
+ 		port,
+ 		path,
+ 		method: "GET",
+-		headers: { accept: "video/mp4" }
++		headers: { accept: "video/mp4", ...auth }
+ 	}, (upRes) => {
+ 		res.writeHead(upRes.statusCode || 502, {
+ 			"content-type": upRes.headers["content-type"] || "application/octet-stream",
+@@ -2304,14 +2319,12 @@
+ 	const pushConfig = makePushConfig(ensureWorker, ffmpegManager);
+ 	const rawServer = ctx.get?.("webServer");
+ 	if (!rawServer || typeof rawServer.register !== "function") return;
+-	const isTrustedRequest = (req) => /(?:^|;\s*)dsh-auth-[^=]+=/.test(String(req.headers.cookie ?? ""));
++	const connection = ctx.get?.("connection");
+ 	const guardHandler = (handler) => async (req, resRaw) => {
+ 		const res = resRaw;
+-		if (!isTrustedRequest(req)) {
+-			res.statusCode = 401;
+-			res.setHeader("Content-Type", "application/json; charset=utf-8");
+-			res.end("{\"ok\":false,\"error\":\"unauthorized\"}");
+-			return;
++		const rejection = ownerRequestRejection(connection, req);
++		if (rejection !== null) {
++			return sendJson(res, rejection, { ok: false, error: "owner-auth-required" });
+ 		}
+ 		return handler(req, res);
+ 	};
+@@ -2503,33 +2516,8 @@
+ 		}
+ 	});
+ 	const disposeLoginImport = server.register({
+-		kind: "exact",
+-		path: EGO_LOGIN_IMPORT_ROUTE,
+-		handler: async (reqRaw, resRaw) => {
+-			const req = reqRaw;
+-			const res = resRaw;
+-			const body = await readJsonBody$1(req).catch(() => ({}));
+-			try {
+-				const result = await loginImport({
+-					source: [
+-						"chrome",
+-						"edge",
+-						"brave",
+-						"auto"
+-					].includes(String(body.source)) ? String(body.source) : "auto",
+-					domains: Array.isArray(body.domains) ? body.domains.map(String) : void 0,
+-					profile: typeof body.profile === "string" && body.profile !== "" ? body.profile : void 0,
+-					closeSource: body.closeSource === true,
+-					dryRun: body.dryRun === true
+-				});
+-				return sendJson(res, result.ok ? 200 : 400, result);
+-			} catch (err) {
+-				return sendJson(res, 500, {
+-					ok: false,
+-					error: String(err?.message || err)
+-				});
+-			}
+-		}
++		kind: "exact", path: EGO_LOGIN_IMPORT_ROUTE,
++		handler: async (_req, res) => sendJson(res, 403, { ...LOGIN_IMPORT_DISABLED })
+ 	});
+ 	const disposeHealth = server.register({
+ 		kind: "exact",
+@@ -2673,7 +2661,7 @@
+ */
+ const EGO_HELP_INDEX = {
+ 	overview: "ego-browser 结构化浏览器工具。导航/交互/观察/表单/网络/等待/键鼠皆有专项工具，另提供 ego_help(本索引)、ego_doctor(体检)、ego_cli/ego_script(自由脚本逃生舱)。分类见: tools / navigate / observe / input / keyboard-mouse / form / wait / network / login / script / doctor。用 `topic` 查询，或直接给工具名。",
+-	tools: "工具清单: ego_status, ego_space_open, ego_space_close, ego_snapshot, ego_navigate, ego_click(+double), ego_fill, ego_js, ego_cdp, ego_screenshot(+selector), ego_page_info, ego_wait, ego_wait_for_selector, ego_wait_for_url, ego_wait_for_response, ego_key(+text/type), ego_hover, ego_read_element, ego_select, ego_drag, ego_scroll, ego_upload, ego_check, ego_dialog, ego_download, ego_http, ego_captcha, ego_auth_flush, ego_login_import, ego_help, ego_doctor, ego_cli, ego_script。",
++	tools: "工具清单: ego_status, ego_space_open, ego_space_close, ego_snapshot, ego_navigate, ego_click(+double), ego_fill, ego_js, ego_cdp, ego_screenshot(+selector), ego_page_info, ego_wait, ego_wait_for_selector, ego_wait_for_url, ego_wait_for_response, ego_key(+text/type), ego_hover, ego_read_element, ego_select, ego_drag, ego_scroll, ego_upload, ego_check, ego_dialog, ego_download, ego_http, ego_captcha, ego_auth_flush, ego_help, ego_doctor, ego_cli, ego_script。",
+ 	navigate: "ego_navigate: 打开URL或切tab(同任务复用当前tab)。ego_wait_for_url: 等跳转(登录/分页)。",
+ 	observe: "ego_snapshot: 整页语义树(带[ref]/loc供点击); ego_page_info: url/标题/视口/滚动/对话框/人机验证; ego_read_element: 读单元素文本/HTML/值/属性/可见性/计数; ego_screenshot(+selector): 整页或元素截图。",
+ 	input: "ego_click(selector/坐标, double双击); ego_fill(填框); ego_key(press组合键 或 text连续键入); ego_check(勾选/取消); ego_select(下拉); ego_upload(文件上传); ego_dialog(接受/取消JS对话框)。",
+@@ -2683,7 +2671,7 @@
+ 	network: "ego_http: 发HTTP请求(默认浏览器上下文 fetch.browser, mode=server走Node fetch.server); ego_wait_for_response: 等并读接口响应。",
+ 	download: "ego_download: 等下载事件并落到指定路径(triggerSelector/triggerScript + 可选 savePath)。",
+ 	captcha: "ego_captcha: 检测页面人机验证(CAPTCHA)并返回{detected,kind}; 检测到请让用户去 ego 浏览器完成; ego_page_info 也附带 humanCheck。",
+-	login: "ego_auth_flush: 把登录cookie落盘到ego profile; 观察窗登录引导条+『已登录,保存』按钮触发同一动作。ego_login_import: 从系统浏览器(Chrome/Edge/Brave)按域名导入登录cookie(source/domains/dryRun; 先dryRun看可导入项; ego浏览器须已在运行)。",
++	login: "请在 agent 浏览器中正常扫码或网页登录；ego_auth_flush 保存该浏览器自己的登录。此受控版本禁用从其他浏览器导入 cookie、账号或配置。",
+ 	script: "ego_cli / ego_script: 原样运行任意 ego-browser nodejs heredoc脚本(page/browser/taskSpaces/site/fetch/cdp预载)。ego_script额外返回 duration/timedOut。",
+ 	doctor: "ego_doctor: 体检环境(浏览器候选、vendored runtime、状态目录、CDP端口、任务空间)。"
+ };
+@@ -2817,7 +2805,9 @@
+ 	"--headless",
+ 	"--no-startup-window",
+ 	"--proxy-server",
+-	"--proxy-bypass-list"
++	"--proxy-bypass-list",
++	"--no-sandbox", "--disable-sandbox", "--disable-setuid-sandbox",
++	"--disable-gpu-sandbox", "--disable-seccomp-filter-sandbox"
+ ]);
+ /**
+ * Shell-like tokenizer for user-supplied arg strings. Handles single/double
+@@ -2952,7 +2942,7 @@
+ 		bitrateKbps: 4e3
+ 	};
+ 	return {
+-		chromePath: typeof config.chromePath === "string" ? config.chromePath : "",
++		chromePath: typeof config.chromePath === "string" && config.chromePath !== "" ? config.chromePath : process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : "",
+ 		captureBackend: oneOf(config.captureBackend, [
+ 			"auto",
+ 			"cdp",
+@@ -3238,6 +3228,8 @@
+ 			handler: async (reqRaw, resRaw) => {
+ 				const req = reqRaw;
+ 				const res = resRaw;
++				const rejection = ownerRequestRejection(ctx.get?.("connection"), req);
++				if (rejection !== null) return writeJson(res, rejection, envelopeError("owner-auth-required", "Owner authentication required"));
+ 				if (req.method !== "POST") {
+ 					writeJson(res, 405, envelopeError("method-not-allowed", "POST only"));
+ 					return;
+@@ -4459,17 +4451,22 @@
+ * Platform/env are injectable for testing; production calls use process defaults.
+ */
+ function resolveEgoEnv(cfg, { platform = process.platform, baseEnv = process.env } = {}) {
+-	if (AUTO_ADAPT_OFF) return baseEnv;
++	// Managed sandbox guard cannot be disabled through EGO_BROWSER_AUTO_ADAPT.
++	if (AUTO_ADAPT_OFF) {
++		const guarded = { ...baseEnv };
++		guarded.EGO_LINUX_EXTRA_ARGS = filterArgs(guarded.EGO_LINUX_EXTRA_ARGS ?? "", CHROME_BLOCKED).map((arg) => JSON.stringify(arg)).join(" ");
++		if (cfg?.chromePath) guarded.EGO_LINUX_CHROME = cfg.chromePath;
++		return guarded;
++	}
+ 	const env = { ...baseEnv };
+ 	if (process.versions.electron && env.ELECTRON_RUN_AS_NODE === void 0) env.ELECTRON_RUN_AS_NODE = "1";
+ 	const chrome = findChromeBinary();
+ 	const configChrome = cfg?.chromePath;
+-	if (env.EGO_LINUX_CHROME === void 0 && configChrome) env.EGO_LINUX_CHROME = configChrome;
+-	if (env.EGO_LINUX_CHROME === void 0 && isPosixRoot(platform) && chrome) env.EGO_LINUX_CHROME = BUNDLED_WRAPPER;
++	if (configChrome) env.EGO_LINUX_CHROME = configChrome;
+ 	if (env.EGO_LINUX_CHROME === void 0 && (platform === "win32" || platform === "darwin") && chrome) env.EGO_LINUX_CHROME = chrome;
+ 	if (env.EGO_LINUX_HEADLESS === void 0 && isHeadlessDetected(platform, env)) env.EGO_LINUX_HEADLESS = "1";
+ 	const configChromeArgs = cfg?.chromeArgs;
+-	if (env.EGO_LINUX_EXTRA_ARGS === void 0 && typeof configChromeArgs === "string" && configChromeArgs.trim() !== "") env.EGO_LINUX_EXTRA_ARGS = configChromeArgs;
++	env.EGO_LINUX_EXTRA_ARGS = filterArgs(env.EGO_LINUX_EXTRA_ARGS ?? configChromeArgs ?? "", CHROME_BLOCKED).map((arg) => JSON.stringify(arg)).join(" ");
+ 	if (env.EGO_ISOLATE_SPACES === void 0 && cfg?.isolateSpaces !== void 0) env.EGO_ISOLATE_SPACES = cfg.isolateSpaces ? "1" : "0";
+ 	return env;
+ }
+@@ -4503,29 +4500,6 @@
+ function isColdStartError(message) {
+ 	return COLD_START_SIGNS.some((re) => re.test(message));
+ }
+-/**
+-* Run `fn` (a per-call `ego-browser` spawn) up to `tries` times with a short
+-* backoff, retrying ONLY when the failure matches a transient cold-start
+-* signature. Real errors return on their first occurrence so they are never
+-* masked. Each retry re-spawns a fresh process, which is exactly what lets a
+-* warmed-up browser connect on a later attempt.
+-*/
+-async function withWarmupRetry(fn, { tries = 3, baseDelayMs = 600 } = {}) {
+-	let last;
+-	for (let i = 0; i < tries; i++) {
+-		const result = await fn();
+-		if (result.ok || !isColdStartError(result.error ?? "")) return result;
+-		last = result;
+-		if (i < tries - 1) await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (i + 1)));
+-	}
+-	return last;
+-}
+-/**
+-* Run an ego script, recovering once from a stale space pointer: a browser
+-* restart wipes the runtime's space table, so the tracker's remembered numeric
+-* id dangles and the runtime hard-fails with "task space not found: N".
+-* Reset the tracker to the space's name (useOrCreate recreates it) and retry.
+-*/
+ /**
+ * Idle reaper decision (issue #47), pure for tests. Reaps only when the
+ * feature is on AND at least one ego_* call has ever happened (a never-used
+@@ -4575,14 +4549,15 @@
+ 	}
+ }
+ /** @internal exported for tests */
+-async function runWithStaleSpaceRetry(ctx, cfg, exec, buildScript, graceOverrideMs) {
+-	let result = await withWarmupRetry(() => runEgoScript(ctx.subprocess, buildScript(), exec, cfg, graceOverrideMs));
+-	if (!result.ok && /task space not found: \d+/.test(result.error ?? "")) {
+-		cfg.spaceTracker.resetToName();
+-		result = await withWarmupRetry(() => runEgoScript(ctx.subprocess, buildScript(), exec, cfg, graceOverrideMs));
+-	}
+-	if (!result.ok && isColdStartError(result.error ?? "")) cfg.onColdStartFailure?.();
+-	return result;
++async function runWithStaleSpaceRetry(ctx, cfg, exec = {}, buildScript, graceOverrideMs) {
++	if (exec.signal?.aborted) return { ok: false, code: "EGO_CANCELLED_BEFORE_START", executionState: "not-started", retryable: false, cancelled: true, timedOut: false, error: "Browser execution cancelled before start; nothing was submitted.", stdout: "", stderr: "" };
++	// Exactly one script submission. A dropped connection may follow a successful click.
++	const result = await runEgoScript(ctx.subprocess, buildScript(), exec, cfg, graceOverrideMs);
++	if (result.ok) return result;
++	return executionUnknown(result, {
++		cancelled: exec.signal?.aborted === true,
++		timedOut: result.timedOut === true || /timed?\s*out|timeout|grace period/i.test(result.error ?? "")
++	});
+ }
+ /** Find the last line carrying the sentinel and JSON-parse its payload. */
+ function parseSentinel(stdout) {
+@@ -4700,31 +4675,21 @@
+ 		stderr
+ 	};
+ }
+-async function runEgoScript(subprocess, script, exec, cfg, graceOverrideMs) {
+-	if (cfg.residentExecutor && Date.now() >= residentCooldownUntil) {
+-		let transport = null;
++async function runEgoScript(subprocess, script, exec, cfg, graceOverrideMs, dependencies = { ensureResidentTransport }) {
++	if (cfg.residentExecutor) {
+ 		try {
+-			transport = ensureResidentTransport(cfg);
+-		} catch {
+-			transport = null;
+-		}
+-		if (transport !== null) try {
++			const transport = dependencies.ensureResidentTransport(cfg);
+ 			const result = residentFrameToResult(await transport.run(script, {
+ 				...exec.signal !== void 0 ? { signal: exec.signal } : {},
+ 				...Number.isFinite(graceOverrideMs) && graceOverrideMs > 0 ? { graceMs: graceOverrideMs } : {}
+ 			}));
+-			if (result.ok || !isColdStartError(result.error ?? "")) return result;
+-			residentCooldownUntil = Date.now() + 1e4;
+-			stopResidentTransport();
++			if (exec.signal?.aborted) return { ...result, ok: false, error: "Browser execution cancelled after submission" };
++			return result;
+ 		} catch (err) {
+-			if (!(err instanceof ResidentNotRunningError)) return {
+-				ok: false,
+-				error: err instanceof Error ? err.message : String(err),
+-				stdout: "",
+-				stderr: ""
+-			};
+-		}
+-	} else if (!cfg.residentExecutor && residentTransport !== null) stopResidentTransport();
++			return { ok: false, error: err instanceof Error ? err.message : String(err), stdout: "", stderr: "" };
++		}
++	}
++	if (residentTransport !== null) stopResidentTransport();
+ 	let handle;
+ 	try {
+ 		const extraCliArgs = filterArgs(cfg.egoCliArgs ?? "", EGO_CLI_BLOCKED);
+@@ -4856,7 +4821,7 @@
+ 		execute: async (args, exec) => withEgoLock(() => observeEgoTool(cfg, opts.name, args, async () => {
+ 			markEgoToolCall(callingSessionId(exec));
+ 			const result = await runWithStaleSpaceRetry(ctx, cfg, exec, () => opts.buildScript(args));
+-			if (!result.ok) throw new Error(result.error);
++			if (!result.ok) throw executionError(result);
+ 			if (typeof opts.afterExecute === "function") opts.afterExecute(args, result.value);
+ 			return result.value;
+ 		})),
+@@ -4995,7 +4960,7 @@
+ 		}),
+ 		openAgentWindow: () => openAgentWindow(ctx, cfg)
+ 	});
+-	cfg.onColdStartFailure = () => tui.toast("Agent Browser could not start after retrying. Run ego_doctor for details.", "error");
++	cfg.onColdStartFailure = () => tui.toast("Browser execution was not confirmed and was not replayed. Run ego_doctor and read the current page.", "error");
+ 	cfg.observeTool = async (name, args, run) => {
+ 		const token = browserState.startTool(name, safeLocatorSummary(name, args));
+ 		try {
+@@ -5034,7 +4999,7 @@
+ 	registerLoginImport(ctx, cfg, reg);
+ 	registerActionTools(ctx, cfg, reg);
+ 	registerHelpAndDoctor(ctx, cfg, reg);
+-	ctx.inject?.(["webServer"], (wctx) => {
++	ctx.inject?.(["webServer", "connection"], (wctx) => {
+ 		try {
+ 			initCastServer(wctx, cfg, bridge, ffmpegManager, () => openAgentWindow(ctx, cfg), (opts) => importLoginCookies(opts, { subprocess: ctx.subprocess }));
+ 		} catch (err) {
+@@ -5236,7 +5201,7 @@
+ 				};
+ 				const jbody = await (await fetch(`http://127.0.0.1:${port}/api/flush`, {
+ 					method: "POST",
+-					headers: { "content-type": "application/json" },
++					headers: { "content-type": "application/json", ...await workerAuthHeaders(port) },
+ 					body: "{}",
+ 					signal: AbortSignal.timeout(8e3)
+ 				})).json();
+@@ -5314,102 +5279,8 @@
+ 		return null;
+ 	}
+ }
+-function registerLoginImport(ctx, cfg, reg) {
+-	reg(defineTool({
+-		name: "ego_login_import",
+-		description: "Import login cookies from the system browser (Chrome/Edge/Brave) into the agent browser, so sites open already logged in. Blocked only where it is known to damage the source profile (#69): Windows + Chrome 155+ (the junction-alias boot + hard kill path reads 0 cookies and has wiped extension registries / reset the search provider). Linux/macOS and older Chrome versions keep working; EGO_LINUX_LOGIN_IMPORT_FORCE=1 overrides the check anywhere. When enabled it works via a throwaway headless instance of the REAL system browser (CDP passthrough — no offline decryption; survives Chrome App-Bound Encryption). Run with dryRun=true first to see what is importable, then import with an explicit domains list (e.g. [\"bilibili.com\"]). The agent browser must be running (call ego_status first). Imported logins persist in the on-disk profile across restarts. Cookie values are never shown — only domain names and counts.",
+-		parameters: {
+-			source: {
+-				type: "string",
+-				description: "chrome | edge | brave | auto (default: auto = first detected browser)."
+-			},
+-			domains: {
+-				type: "json",
+-				description: "Optional array of domains to import, e.g. [\"bilibili.com\",\"zhihu.com\"] (subdomains included). Omit = ALL cookies — prefer an explicit list."
+-			},
+-			profile: {
+-				type: "string",
+-				description: "Source browser profile directory name, e.g. \"Default\" or \"Profile 1\" (default: the first profile)."
+-			},
+-			closeSource: {
+-				type: "boolean",
+-				description: "A running source browser holds an exclusive lock on its cookie store (Windows). true = gracefully close it first (its windows/tabs restore on next launch). false (default) = return an actionable error instead."
+-			},
+-			dryRun: {
+-				type: "boolean",
+-				description: "true = only report what would be imported (domains + cookie counts), write nothing."
+-			}
+-		},
+-		output: {
+-			schema: {
+-				type: "object",
+-				additionalProperties: false,
+-				properties: {
+-					ok: {
+-						type: "boolean",
+-						required: true
+-					},
+-					source: { type: "string" },
+-					profile: { type: "string" },
+-					dryRun: { type: "boolean" },
+-					totalRead: { type: "integer" },
+-					matched: { type: "integer" },
+-					written: { type: "integer" },
+-					domains: { type: "json" },
+-					closedSource: { type: "boolean" },
+-					restoredFromBackup: { type: "boolean" },
+-					disabled: { type: "boolean" },
+-					error: { type: "string" }
+-				}
+-			},
+-			render: renderText
+-		},
+-		timeoutMs: 6e4,
+-		execute: async (args) => withEgoLock(() => observeEgoTool(cfg, "ego_login_import", args, async () => {
+-			try {
+-				const guardBinary = cfg.chromePath || findChromeBinary();
+-				const policy = loginImportPolicy({
+-					platform: process.platform,
+-					chromeMajor: detectChromeMajorVersion(guardBinary),
+-					force: loginImportForced()
+-				});
+-				if (!policy.allowed) return {
+-					ok: false,
+-					disabled: true,
+-					error: `ego_login_import is disabled here: ${policy.reason}`
+-				};
+-				const domains = Array.isArray(args.domains) ? args.domains.map(String) : void 0;
+-				const source = typeof args.source === "string" && args.source !== "" ? args.source : "auto";
+-				if (![
+-					"chrome",
+-					"edge",
+-					"brave",
+-					"auto"
+-				].includes(source)) return {
+-					ok: false,
+-					error: `invalid source "${source}" — expected chrome|edge|brave|auto`
+-				};
+-				return await importLoginCookies({
+-					source,
+-					domains,
+-					profile: typeof args.profile === "string" && args.profile !== "" ? args.profile : void 0,
+-					closeSource: args.closeSource === true,
+-					dryRun: args.dryRun === true
+-				}, { subprocess: ctx.subprocess });
+-			} catch (err) {
+-				return {
+-					ok: false,
+-					error: String(err?.message || err)
+-				};
+-			}
+-		})),
+-		presentCall: (args) => ({
+-			card: "generic",
+-			title: toolCallTitle("ego_login_import", args),
+-			kind: "other",
+-			rawInput: null
+-		})
+-	}));
++function registerLoginImport(_ctx, _cfg, _reg) {
++	// Managed policy: absent from the model tool registry, including dry-run/force.
+ }
+ /** The structured action tools that drive `ego-browser nodejs`. */
+ function registerActionTools(ctx, cfg, reg) {
+@@ -6034,7 +5905,7 @@
+ 			execute: async (args, exec) => {
+ 				markEgoToolCall(callingSessionId(exec));
+ 				const result = await runWithStaleSpaceRetry(ctx, cfg, exec, () => str(args.script, ""));
+-				if (!result.ok) throw new Error(result.error);
++				if (!result.ok) throw executionError(result);
+ 				const parsed = parseSentinel(result.stdout);
+ 				return {
+ 					ok: true,
+@@ -6262,6 +6133,10 @@
+ 						result: { type: "json" },
+ 						durationMs: { type: "integer" },
+ 						timedOut: { type: "boolean" },
++						cancelled: { type: "boolean" },
++						code: { type: "string" },
++						executionState: { type: "string" },
++						retryable: { type: "boolean" },
+ 						error: { type: "string" }
+ 					}
+ 				},
+@@ -6279,7 +6154,11 @@
+ 					stdout: result.stdout,
+ 					stderr: result.stderr,
+ 					durationMs,
+-					timedOut: false,
++					timedOut: result.timedOut === true,
++					cancelled: result.cancelled === true,
++					code: result.code,
++					executionState: result.executionState,
++					retryable: false,
+ 					error: result.error
+ 				};
+ 				const parsed = parseSentinel(result.stdout);
+@@ -6302,4 +6181,4 @@
+ 	})());
+ }
+ //#endregion
+-export { Config, apply, createActiveSpaceTracker, detectChromeMajorVersion, ensureResidentTransport, findChromeBinary, inject, isColdStartError, loginImportForced, loginImportPolicy, name, parseSentinelOrLastJson, resetResidentTransportForTests, resolveEgoEnv, runWithStaleSpaceRetry, shouldReapBrowser };
++export { proxyFrom, proxyPost, workerAuthHeaders, registerEgoStatus, registerAuthFlush, initCastServer, registerEgoBrowserGateway, registerActionTools, registerHelpAndDoctor, registerLoginImport, runEgoScript, Config, apply, createActiveSpaceTracker, detectChromeMajorVersion, ensureResidentTransport, findChromeBinary, inject, isColdStartError, loginImportForced, loginImportPolicy, name, parseSentinelOrLastJson, resetResidentTransportForTests, resolveEgoEnv, runWithStaleSpaceRetry, shouldReapBrowser };
+--- upstream/lib/dfy-policy.js
++++ managed/lib/dfy-policy.js
+@@ -0,0 +1,31 @@
++/** Local managed policy; uses the current DSH connection.admit contract. */
++export function ownerRequestRejection(connection, req) {
++  try {
++    if (typeof connection?.admit !== 'function') return 403;
++    const admission = connection.admit(req);
++    if (!admission || typeof admission !== 'object') return 403;
++    if ('rejection' in admission) return admission.rejection === 401 ? 401 : 403;
++    if (!admission.peer || admission.peer.signal?.aborted === true
++      || admission.peer.principal?.kind !== 'owner') return 403;
++    return null;
++  } catch { return 403; }
++}
++
++export const LOGIN_IMPORT_DISABLED = Object.freeze({
++  ok: false, disabled: true, code: 'LOGIN_IMPORT_DISABLED',
++  error: 'Login import is disabled in this managed build. Log in normally in the agent browser.'
++});
++
++export function executionUnknown(result, { cancelled = false, timedOut = false } = {}) {
++  return { ...result, ok: false, code: 'EGO_EXECUTION_UNKNOWN',
++    executionState: 'unknown', retryable: false, cancelled, timedOut,
++    error: 'Browser execution was not confirmed. It was not replayed; read the current page before deciding the next action.'
++      + (result.error ? ` ${result.error}` : '') };
++}
++
++export function executionError(result) {
++  return Object.assign(new Error(result.error || 'Browser execution failed'), {
++    code: result.code, executionState: result.executionState,
++    retryable: false, cancelled: result.cancelled === true, timedOut: result.timedOut === true
++  });
++}
+--- upstream/lib/worker-auth.js
++++ managed/lib/worker-auth.js
+@@ -0,0 +1,22 @@
++import { randomBytes, timingSafeEqual } from 'node:crypto';
++
++export const WORKER_TOKEN_HEADER = 'x-dfy-ego-worker-token';
++export const validWorkerToken = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
++export const createWorkerToken = () => randomBytes(32).toString('hex');
++
++/** Called before every worker route; no token or screenshot reaches a browser client. */
++export function admitWorkerRequest(req, res, expectedToken) {
++  if (req.method === 'OPTIONS') {
++    res.writeHead(204, { 'cache-control': 'no-store' });
++    res.end();
++    return false;
++  }
++  const supplied = req.headers[WORKER_TOKEN_HEADER];
++  if (!validWorkerToken(expectedToken) || !validWorkerToken(supplied)
++    || !timingSafeEqual(Buffer.from(supplied), Buffer.from(expectedToken))) {
++    res.writeHead(403, { 'content-type': 'application/json', 'cache-control': 'no-store' });
++    res.end('{"ok":false,"error":"worker-auth-required"}');
++    return false;
++  }
++  return true;
++}
+--- upstream/runtime/ego-linux/bin/ego-browser.mjs
++++ managed/runtime/ego-linux/bin/ego-browser.mjs
+@@ -61,6 +61,9 @@
+ `;
+ 
+ async function importChromeProfile() {
++  process.stderr.write("LOGIN_IMPORT_DISABLED: use normal web login in the agent browser.\n");
++  return 1;
++  /* Upstream import implementation retained below; unreachable. */
+   const source = CHROME_CONFIG_CANDIDATES.find((candidate) =>
+     existsSync(join(candidate, "Default")),
+   );
+--- upstream/runtime/ego-linux/src/chrome.mjs
++++ managed/runtime/ego-linux/src/chrome.mjs
+@@ -83,6 +83,8 @@
+   "--no-startup-window",
+   "--proxy-server",
+   "--proxy-bypass-list",
++  "--no-sandbox", "--disable-sandbox", "--disable-setuid-sandbox",
++  "--disable-gpu-sandbox", "--disable-seccomp-filter-sandbox",
+ ]);
+ 
+ function tokenizeArgs(input) {
+--- upstream/bin/ego-chrome-wrapper.sh
++++ managed/bin/ego-chrome-wrapper.sh
+@@ -1,15 +1,5 @@
+ #!/bin/sh
+-# ego-browser — bundled --no-sandbox Chrome wrapper.
+-#
+-# Shipped INSIDE this plugin so it requires no host-side setup: root / Docker /
+-# CI environments refuse to run Chrome without `--no-sandbox`, and that flag
+-# cannot be passed through EGO_LINUX_CHROME (which takes a bare binary path).
+-# This wrapper finds a usable Chrome binary and execs it with `--no-sandbox`,
+-# forwarding every other flag the ego-linux CLI passes.
+-#
+-# It only ever ADDS --no-sandbox (via the wrapper) and never changes any other
+-# launch argument, so behavior on non-root machines is identical to pointing
+-# EGO_LINUX_CHROME straight at the binary.
++# Managed build: preserves Chrome sandbox; root must use a supported sandboxed setup.
+ set -eu
+ 
+ # Frame-rate uncap is OPT-IN and OFF by default. Measured on Chromium:
+@@ -24,11 +14,7 @@
+   EXTRA="--disable-frame-rate-limit"
+ fi
+ 
+-# Resolve our own absolute path so we can refuse to exec ourselves. On root
+-# hosts the plugin sets EGO_LINUX_CHROME to this very wrapper (see
+-# resolveEgoEnv in lib/index.js); without this guard the first candidate below
+-# would exec us again — re-appending --no-sandbox on every pass — and spin
+-# forever instead of ever reaching a real browser binary.
++# Refuse recursive invocation when this wrapper is explicitly selected.
+ SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+ 
+ # Candidate Chrome binaries, in preference order. The first that exists wins.
+@@ -44,7 +30,7 @@
+ do
+   if [ -n "${bin:-}" ] && [ -x "${bin}" ]; then
+     if [ "$(readlink -f "${bin}" 2>/dev/null || echo "${bin}")" != "${SELF}" ]; then
+-      exec "${bin}" --no-sandbox ${EXTRA} "$@"
++      exec "${bin}" ${EXTRA} "$@"
+     fi
+   fi
+ done
+--- upstream/bin/ego-cast-worker.mjs
++++ managed/bin/ego-cast-worker.mjs
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env node
+ import { createRequire } from "node:module";
++import { createWorkerToken, admitWorkerRequest } from "../lib/worker-auth.js";
+ import { createServer } from "node:http";
+ import { constants, mkdirSync, rmSync, writeFileSync } from "node:fs";
+ import { homedir, platform } from "node:os";
+@@ -5598,7 +5599,9 @@
+ async function main() {
+ 	stopSiblingWorkers();
+ 	rmSync(CAST_STATE_FILE, { force: true });
++	const workerToken = createWorkerToken();
+ 	const server = createServer(async (req, res) => {
++		if (!admitWorkerRequest(req, res, workerToken)) return;
+ 		const url = new URL(req.url ?? "/", "http://127.0.0.1");
+ 		try {
+ 			if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, {
+@@ -5896,8 +5899,9 @@
+ 	mkdirSync(STATE_DIR, { recursive: true });
+ 	writeFileSync(CAST_STATE_FILE, JSON.stringify({
+ 		port,
+-		pid: process.pid
+-	}, null, 2));
++		pid: process.pid,
++		token: workerToken
++	}, null, 2), { mode: 0o600 });
+ 	const metadataTimer = setInterval(() => {
+ 		if (!active || sseClients.size === 0) return;
+ 		snapshotSpaces().then((spaces) => broadcast("spaces", spaces)).catch(() => {});
