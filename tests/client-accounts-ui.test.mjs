@@ -972,9 +972,8 @@ test('memory editor reads provenance and scope, preserves CAS drafts, and explic
   assert.equal(open().props['aria-label'], '查看与纠正记忆：喜欢热茶');
   open().props.onClick(); await f.flush();
   assert(f.text().includes('历史聊天和备份仍会保留'), 'forget consequence remains visible at the action');
-  await f.click('更多');
   assert(f.text().includes('memory/facts.json')); assert(f.text().includes('旧记录，来源未进一步确认')); assert(f.text().includes('主要使用者 · 所有身份'));
-  await f.click('更多'); await f.change('-detail', '现在更喜欢喝温水。');
+  await f.change('-detail', '现在更喜欢喝温水。');
   open().props.onClick(); await f.flush(); open().props.onClick(); await f.flush();
   assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。', 'collapsing and reopening the row cannot discard its draft');
   await f.click('账号与身份'); await f.change('-account-name', '尚未保存');
@@ -986,14 +985,12 @@ test('memory editor reads provenance and scope, preserves CAS drafts, and explic
   await f.click('刷新'); assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。');
   await f.click('采用最新版本，保留我修改的字段');
   assert.equal(f.field('-summary').props.value, '外部更新的摘要'); assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。');
-  await f.click('更多'); await f.change('-source', 'inference');
-  const confirmed = f.nodes().find((node) => node.props['aria-label'] === '记忆已由本人确认'); assert(confirmed.props.disabled); assert.equal(confirmed.props.checked, false);
   await f.click('保存纠正'); let payload = f.calls.filter((call) => call.route === 'memory/correct').at(-1).payload;
-  assert.equal(payload.revision, 'b'.repeat(64)); assert.equal(payload.confirmed, false); assert.equal(payload.sourceType, 'inference');
+  assert.equal(payload.revision, 'b'.repeat(64)); assert.equal(payload.confirmed, false); assert.equal(payload.sourceType, 'user_explicit', 'provenance editing is no longer exposed; the stored value passes through');
   assert.equal(f.memoryItems[0].status, 'unconfirmed'); await f.click('不再记住'); assert.equal(f.memoryItems[0].status, 'forgotten');
-  assert(f.text().includes('历史聊天和备份仍会保留')); await f.click('撤销最近一次修改'); assert.equal(f.memoryItems[0].status, 'unconfirmed');
-  await f.click('撤销最近一次修改'); assert.equal(f.memoryItems[0].summary, '外部更新的摘要'); assert.equal(f.memoryItems[0].detail, '日常喜欢喝热茶。');
-  assert(f.nodes().some((node) => node.type === 'button' && f.text(node) === '撤销最近一次修改' && node.props.disabled), 'restore disables once history is empty');
+  assert(f.text().includes('历史聊天和备份仍会保留')); await f.click('撤销修改'); assert.equal(f.memoryItems[0].status, 'unconfirmed');
+  await f.click('撤销修改'); assert.equal(f.memoryItems[0].summary, '外部更新的摘要'); assert.equal(f.memoryItems[0].detail, '日常喜欢喝热茶。');
+  assert(f.nodes().some((node) => node.type === 'button' && f.text(node) === '撤销修改' && node.props.disabled), 'restore disables once history is empty');
   assert.equal(f.calls.filter((call) => ['config', 'apply', 'dependencies/action', 'model/test', 'phone/check'].includes(call.route)).length, 0);
 });
 

@@ -3400,9 +3400,9 @@ window.__ModuleLoader__.load({
 
     function MemoryPanel({ active, refreshKey = 0, onDirtyChange, writeBlocked, accounts = [] }) {
       // 整条可点、就地展开；草稿按条保留互不挡路；低频操作收进「更多」。
-      const [deleteChecked, setDeleteChecked] = useState(false);
+      const [armedDelete, setArmedDelete] = useState(null);
       const api = usePanelApi();
-      const [snapshot, setSnapshot] = useState(null), [filters, setFilters] = useState({ query: '', status: 'all' });
+      const [snapshot, setSnapshot] = useState(null), [filters, setFilters] = useState({ query: '' });
       const [selected, setSelected] = useState(null), [drafts, setDrafts] = useState({});
       const [busy, setBusy] = useState(''), [failure, setFailure] = useState(null), [notice, setNotice] = useState('');
       const lock = useRef(false), latest = useRef({}), editorId = useRef('dfy-memory-' + Math.random().toString(36).slice(2));
@@ -3418,7 +3418,7 @@ window.__ModuleLoader__.load({
         if (lock.current) return;
         lock.current = true; setBusy('read'); setFailure(null);
         try {
-          const params = new URLSearchParams({ ...filters, offset: String(offset), limit: '50' });
+          const params = new URLSearchParams({ ...filters, status: 'all', offset: String(offset), limit: '50' });
           const result = await api.call('memory?' + params);
           const next = result.memory;
           if (!next || typeof next.revision !== 'string' || !Array.isArray(next.items)) throw new Error('对话状态没读全，重新查看一次。');
@@ -3437,7 +3437,9 @@ window.__ModuleLoader__.load({
         const timer = setTimeout(() => { if (!lock.current) load(0); }, 300);
         return () => clearTimeout(timer);
       }, [filters]);
-      useEffect(() => { setDeleteChecked(false); }, [selected]);
+      useEffect(() => { setArmedDelete(null); }, [selected]);
+      const armDelete = (id) => { setArmedDelete(id); };
+      const confirmDelete = (item) => armedDelete === item.id;
       function toggle(item) {
         if (busy) return;
         setSelected((previous) => previous === item.id ? null : item.id);
@@ -3448,7 +3450,7 @@ window.__ModuleLoader__.load({
         const entry = entryOf(item), d = entry.draft, dirty = !equal(d, entry.base);
         const valid = d.summary.trim() && d.summary.length <= 160 && d.detail.trim() && d.detail.length <= 2000;
         const conflict = Boolean(entry.revision && snapshot?.revision && entry.revision !== snapshot.revision);
-        if (lock.current || writeBlocked || action === 'delete' && !deleteChecked
+        if (lock.current || writeBlocked || action === 'delete' && armedDelete !== item.id
           || action === 'correct' && (!dirty || !valid) || action !== 'correct' && dirty
           || action === 'restore' && !item.canRestore || action === 'forget' && item.status === 'forgotten'
           || conflict && action !== 'restore' && action !== 'delete') return;
@@ -3460,7 +3462,7 @@ window.__ModuleLoader__.load({
             if (api.alive.current) {
               setSnapshot((old) => ({ ...old, revision: result.memory.revision, total: Math.max(0, old.total - 1), items: old.items.filter((row) => row.id !== item.id) }));
               setDrafts((previous) => { const next = { ...previous }; delete next[item.id]; return next; });
-              setSelected(null); setNotice(result.memory.note); setDeleteChecked(false);
+              setSelected(null); setArmedDelete(null); setNotice(result.memory.note);
             }
             return;
           }
@@ -3515,25 +3517,16 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'dfy-button dfy-primary', disabled: Boolean(busy) || writeBlocked || !dirty || conflict, onClick: () => mutate('correct', item) }, busy === 'correct' ? '保存中…' : '保存纠正'),
             h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || item.status === 'forgotten', onClick: () => mutate('forget', item) }, '不再记住'),
             h('span', { className: 'dfy-hint', style: { alignSelf: 'center', margin: 0 } }, '不再记住后，历史聊天和备份仍会保留。')),
-          h(Advanced, { key: 'more', title: '更多' },
-            h('div', { className: 'dfy-field' },
-              h('label', { className: 'dfy-label', htmlFor: editorId.current + '-' + item.id + '-source' }, '内容依据'),
-              h('select', { id: editorId.current + '-' + item.id + '-source', value: d.sourceType, disabled: Boolean(busy), onChange: (event) =>
-                setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: { ...d, sourceType: event.target.value, confirmed: event.target.value === 'inference' ? false : d.confirmed } } })) },
-              h('option', { value: 'user_explicit' }, '用户明确告知'), h('option', { value: 'inference' }, '推测，尚需本人确认'))),
-            h('label', { className: 'dfy-toggle' }, h('span', { className: 'dfy-toggle-copy' }, '这条内容已由本人确认'),
-              h('input', { type: 'checkbox', checked: d.confirmed, disabled: Boolean(busy) || d.sourceType === 'inference',
-                'aria-label': '记忆已由本人确认', onChange: (event) =>
-                  setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: { ...d, confirmed: event.target.checked } } })) })),
-            h('p', { className: 'dfy-meta' }, contextLabel(item), ' · 来源：', item.source || '未确认', ' · ', provenanceLabel(item)),
-            item.history?.length ? item.history.map((row, index) => h('p', { key: index, className: 'dfy-meta' }, displayTime(row.at), ' · ',
-              { correct: '纠正内容', forget: '不再记住', restore: '撤销最近修改' }[row.action] || '记忆变更', row.summary ? ' · ' + row.summary : '')) : null,
+          h('p', { className: 'dfy-meta', style: { marginTop: 14 } }, contextLabel(item), ' · 来源：', item.source || '未确认', ' · ', provenanceLabel(item),
+            item.history?.length ? ' · ' + item.history.length + ' 次修改' : ''),
+          h('div', { className: 'dfy-inline-actions', style: { marginTop: 6 } },
             dirty ? h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy), onClick: () =>
-              setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: entry.base } })) }, '放弃此条的修改') : null,
-            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !item.canRestore, onClick: () => mutate('restore', item) }, '撤销最近一次修改'),
-            h('label', null, h('input', { type: 'checkbox', checked: deleteChecked, disabled: Boolean(busy) || writeBlocked || dirty || conflict,
-              onChange: (event) => setDeleteChecked(event.target.checked) }), ' 确认删除此条原档案与更正历史；DSH聊天和外部备份仍保留'),
-            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !deleteChecked, onClick: () => mutate('delete', item) }, '删除这条记忆')));
+              setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: entry.base } })) }, '放弃修改') : null,
+            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !item.canRestore, onClick: () => mutate('restore', item) }, '撤销修改'),
+            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict, onClick: () => {
+              if (confirmDelete(item)) mutate('delete', item); else armDelete(item.id);
+            }, style: { color: confirmDelete(item) ? '#b14545' : undefined } },
+              confirmDelete(item) ? '再点一次确认删除（历史和备份仍保留）' : '删除')));
       };
       return h('section', { className: 'dfy-section', 'aria-label': '记忆管理' },
         h(SectionHeading, { title: '记忆', help: '她长期记住的事实、资料和重要旧事。点开一条可以纠正或选择不再记住；修改影响她之后的回忆，历史聊天和备份仍保留。近期聊天细节在「生活与成长」里。' }),
@@ -3545,11 +3538,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dfy-toolbar', style: { marginTop: 2 } },
           h('div', { className: 'dfy-field', style: { flex: 1, minWidth: 180 } }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-query' }, '搜索记忆'),
             h('input', { id: editorId.current + '-query', type: 'text', value: filters.query, maxLength: 200, disabled: Boolean(busy) || anyDirty,
-              placeholder: '改完自动检索', onChange: (event) => setFilters((previous) => ({ ...previous, query: event.target.value })) })),
-          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-status' }, '状态'),
-            h('select', { id: editorId.current + '-filter-status', value: filters.status, disabled: Boolean(busy) || anyDirty,
-              onChange: (event) => setFilters((previous) => ({ ...previous, status: event.target.value })) },
-              [['all', '全部'], ['active', '已记住'], ['forgotten', '不再记住'], ['unconfirmed', '待确认']].map(([value, name]) => h('option', { value, key: value }, name))))),
+              placeholder: '改完自动检索', onChange: (event) => setFilters((previous) => ({ ...previous, query: event.target.value })) }))),
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert', style: { marginTop: 12 } }, failure.code === 'CONFLICT'
           ? '记忆已被其他操作修改。草稿已保留，请读取最新记忆，再核对采用。' : resourceError(failure)) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status', style: { marginTop: 12 } }, notice) : null,
