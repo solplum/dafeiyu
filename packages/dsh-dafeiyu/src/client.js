@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({
 .dfy-panel .dfy-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}.dfy-panel .dfy-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}.dfy-panel .dfy-card{padding:17px 18px;border:1px solid var(--dfy-border);border-radius:13px;min-width:0;background:var(--dfy-surface)}.dfy-panel .dfy-card-label{font-size:12px;color:var(--dfy-muted);margin-bottom:8px}.dfy-panel .dfy-card-value{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600}.dfy-panel .dfy-card-note{font-size:12px;color:var(--dfy-muted);margin-top:6px}.dfy-panel .dfy-good{color:var(--dfy-green)}.dfy-panel .dfy-warn{color:var(--dfy-amber)}.dfy-panel .dfy-neutral{color:var(--dfy-muted)}
 .dfy-panel .dfy-tabs{display:flex;gap:4px;border-bottom:1px solid var(--dfy-border);margin-bottom:22px}.dfy-panel .dfy-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dfy-muted);padding:11px 16px;margin-bottom:-1px;white-space:nowrap}.dfy-panel .dfy-tab[aria-selected=true]{color:var(--dfy-blue);border-bottom-color:var(--dfy-blue);font-weight:600}.dfy-panel .dfy-section{border:1px solid var(--dfy-border);border-radius:14px;padding:20px;margin-bottom:16px}.dfy-panel .dfy-section h3{font-size:15px;font-weight:600;margin-bottom:4px}.dfy-panel .dfy-description{color:var(--dfy-muted);font-size:12px;margin-bottom:17px}.dfy-panel .dfy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;row-gap:17px}.dfy-panel .dfy-field{min-width:0}.dfy-panel .dfy-label{display:flex;align-items:center;gap:7px;font-weight:550;margin-bottom:6px;font-size:13px}.dfy-panel .dfy-field input:not([type=checkbox]),.dfy-panel .dfy-field select{display:block;width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink)}.dfy-panel .dfy-field input:disabled,.dfy-panel .dfy-field select:disabled{background:var(--dfy-soft);opacity:.72}.dfy-panel .dfy-hint{font-size:12px;color:var(--dfy-muted);margin-top:5px;overflow-wrap:anywhere}.dfy-panel .dfy-field-error{font-size:12px;color:#b14545;margin-top:5px}.dfy-panel .dfy-badge{font-size:10px;line-height:1.5;padding:1px 6px;border-radius:5px;background:var(--dfy-soft);color:var(--dfy-muted);font-weight:400;white-space:nowrap}
 .dfy-panel .dfy-toggle{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--dfy-border);cursor:pointer}.dfy-panel .dfy-toggle:last-child{border-bottom:0}.dfy-panel .dfy-toggle-copy{flex:1;min-width:0}.dfy-panel .dfy-toggle-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:550}.dfy-panel .dfy-toggle input{width:17px;height:17px;accent-color:var(--dfy-blue);flex:none;margin:0}.dfy-panel .dfy-tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:12px 0}.dfy-panel .dfy-readonly{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--dfy-border);font-size:13px}.dfy-panel .dfy-readonly:last-child{border-bottom:0}.dfy-panel .dfy-readonly span:last-child{text-align:right;color:var(--dfy-muted)}.dfy-panel .dfy-paths{margin-top:10px}.dfy-panel .dfy-path{padding:10px 0;border-top:1px solid var(--dfy-border)}.dfy-panel .dfy-path span{display:block;font-size:12px;color:var(--dfy-muted);margin-bottom:4px}.dfy-panel .dfy-path code{display:block;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;user-select:text}
-.dfy-panel .dfy-notice{padding:12px 14px;border:1px solid #8cb7d555;border-radius:9px;background:#5095c910;color:var(--dfy-ink);font-size:12px;margin-bottom:14px;overflow-wrap:anywhere}.dfy-panel .dfy-notice.dfy-error{border-color:#c56d6d66;background:#c55a5a0c}.dfy-panel .dfy-notice.dfy-warning{border-color:#c8a05a66;background:#cba1430c}.dfy-panel .dfy-notice ul{margin:7px 0 0;padding-left:18px}.dfy-panel .dfy-link-button{border:0;background:transparent;padding:0;color:var(--dfy-blue);font-size:12px;text-decoration:underline;text-underline-offset:3px}.dfy-panel .dfy-link-button:disabled{color:var(--dfy-muted);text-decoration:none;cursor:not-allowed}.dfy-panel .dfy-sub{margin:18px 0 0}.dfy-panel .dfy-sub h4{font-size:13px;font-weight:600;margin:0 0 8px}.dfy-panel .dfy-sub h5{font-size:12px;font-weight:600;margin:12px 0 6px;color:var(--dfy-muted)}.dfy-panel .dfy-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0 5px;margin-top:22px;border-top:1px solid var(--dfy-border);background:var(--dfy-surface)}.dfy-panel .dfy-footer-note{font-size:12px;color:var(--dfy-muted);max-width:46%}.dfy-panel .dfy-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.dfy-panel .dfy-button{min-height:36px;padding:7px 13px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink);font-size:12px}.dfy-panel .dfy-button:hover:not(:disabled){background:var(--dfy-soft)}.dfy-panel .dfy-button.dfy-primary{background:var(--dfy-blue);border-color:var(--dfy-blue);color:white}.dfy-panel .dfy-button.dfy-primary:hover:not(:disabled){filter:brightness(1.08)}.dfy-panel .dfy-empty{padding:35px 16px;text-align:center;color:var(--dfy-muted)}
+.dfy-panel .dfy-notice{padding:12px 14px;border:1px solid #8cb7d555;border-radius:9px;background:#5095c910;color:var(--dfy-ink);font-size:12px;margin-bottom:14px;overflow-wrap:anywhere}.dfy-panel .dfy-notice.dfy-error{border-color:#c56d6d66;background:#c55a5a0c}.dfy-panel .dfy-notice.dfy-warning{border-color:#c8a05a66;background:#cba1430c}.dfy-panel .dfy-notice ul{margin:7px 0 0;padding-left:18px}.dfy-panel .dfy-link-button{border:0;background:transparent;padding:0;color:var(--dfy-blue);font-size:12px;text-decoration:underline;text-underline-offset:3px}.dfy-panel .dfy-link-button:disabled{color:var(--dfy-muted);text-decoration:none;cursor:not-allowed}.dfy-panel .dfy-sub{margin:18px 0 0}.dfy-panel .dfy-memory-row{display:block;width:100%;border:0;background:transparent;text-align:left;padding:0;cursor:pointer;color:inherit;font:inherit}.dfy-panel .dfy-memory-row:hover .dfy-resource-heading strong{color:var(--dfy-blue)}.dfy-panel .dfy-sub h4{font-size:13px;font-weight:600;margin:0 0 8px}.dfy-panel .dfy-sub h5{font-size:12px;font-weight:600;margin:12px 0 6px;color:var(--dfy-muted)}.dfy-panel .dfy-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0 5px;margin-top:22px;border-top:1px solid var(--dfy-border);background:var(--dfy-surface)}.dfy-panel .dfy-footer-note{font-size:12px;color:var(--dfy-muted);max-width:46%}.dfy-panel .dfy-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.dfy-panel .dfy-button{min-height:36px;padding:7px 13px;border:1px solid var(--dfy-border);border-radius:8px;background:var(--dfy-surface);color:var(--dfy-ink);font-size:12px}.dfy-panel .dfy-button:hover:not(:disabled){background:var(--dfy-soft)}.dfy-panel .dfy-button.dfy-primary{background:var(--dfy-blue);border-color:var(--dfy-blue);color:white}.dfy-panel .dfy-button.dfy-primary:hover:not(:disabled){filter:brightness(1.08)}.dfy-panel .dfy-empty{padding:35px 16px;text-align:center;color:var(--dfy-muted)}
 @media(prefers-color-scheme:dark){.dfy-panel{--dfy-ink:var(--dsw-alias-label-primary,#e1e9f3);--dfy-muted:var(--dsw-alias-label-secondary,#9baabd);--dfy-border:var(--dsw-alias-border-l2,#344253);--dfy-surface:var(--dsw-alias-bg-layer-1,#1b2431);--dfy-soft:var(--dsw-alias-bg-layer-2,#263244);--dfy-blue:#75b2e6;--dfy-green:#72c6ac;--dfy-amber:#e1b46e}.dfy-panel .dfy-button.dfy-primary{background:#326fa7;border-color:#326fa7}}
 @media(max-width:640px){.dfy-panel{padding:14px}.dfy-panel .dfy-hero{padding:18px 16px;gap:12px}.dfy-panel .dfy-hero h2{font-size:21px}.dfy-panel .dfy-mark{width:44px;height:44px;font-size:27px}.dfy-panel .dfy-live{display:none}.dfy-panel .dfy-cards{gap:8px}.dfy-panel .dfy-card{padding:12px 10px}.dfy-panel .dfy-card-value{font-size:13px;gap:5px}.dfy-panel .dfy-card-note{font-size:11px}.dfy-panel .dfy-section{padding:16px}.dfy-panel .dfy-grid,.dfy-panel .dfy-tool-grid{grid-template-columns:1fr}.dfy-panel .dfy-tab{padding:10px 12px}.dfy-panel .dfy-footer{align-items:flex-start;flex-direction:column}.dfy-panel .dfy-footer-note{max-width:100%}.dfy-panel .dfy-actions{width:100%}}
 .dfy-panel .dfy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.dfy-panel .dfy-tabs{overflow-x:auto}.dfy-panel [hidden]{display:none!important}.dfy-panel .dfy-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0}.dfy-panel .dfy-inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dfy-panel .dfy-search{display:flex;align-items:flex-end;gap:8px;flex:1;min-width:220px}.dfy-panel .dfy-search .dfy-field{flex:1}.dfy-panel .dfy-search .dfy-button{min-height:38px}.dfy-panel .dfy-meta{font-size:12px;color:var(--dfy-muted);overflow-wrap:anywhere}.dfy-panel .dfy-state-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}.dfy-panel .dfy-state-cell{padding:12px;border:1px solid var(--dfy-border);border-radius:9px;min-width:0}.dfy-panel .dfy-state-cell span{display:block;font-size:11px;color:var(--dfy-muted);margin-bottom:4px}.dfy-panel .dfy-state-cell strong{font-size:13px;font-weight:550}.dfy-panel .dfy-qr{display:flex;gap:20px;align-items:center;margin-top:16px;padding:16px;border:1px solid var(--dfy-border);border-radius:10px}.dfy-panel .dfy-qr img{width:210px;height:210px;object-fit:contain;background:white;border:10px solid white;border-radius:8px}.dfy-panel .dfy-qr-copy{font-size:12px;color:var(--dfy-muted);max-width:300px}.dfy-panel .dfy-gallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}.dfy-panel .dfy-meme{border:1px solid var(--dfy-border);border-radius:10px;overflow:hidden;min-width:0;background:var(--dfy-surface)}.dfy-panel .dfy-thumbnail{display:flex;width:100%;height:136px;align-items:center;justify-content:center;border:0;border-bottom:1px solid var(--dfy-border);padding:8px;background:var(--dfy-soft);color:var(--dfy-muted);font-size:12px}.dfy-panel .dfy-thumbnail img{max-width:100%;max-height:120px;object-fit:contain}.dfy-panel .dfy-meme-copy{padding:10px}.dfy-panel .dfy-meme-title{font-size:12px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dfy-panel .dfy-meme-file{font-size:10px;color:var(--dfy-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.dfy-panel .dfy-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;min-height:17px}.dfy-panel .dfy-preview{margin:14px 0;padding:16px;border:1px solid var(--dfy-border);border-radius:10px;text-align:center;background:var(--dfy-soft)}.dfy-panel .dfy-preview img{display:block;max-width:100%;max-height:420px;object-fit:contain;margin:12px auto}.dfy-panel .dfy-preview figcaption{font-size:12px;overflow-wrap:anywhere}.dfy-panel .dfy-persona{width:100%;min-height:330px;resize:vertical;padding:14px;border:1px solid var(--dfy-border);border-radius:9px;background:var(--dfy-surface);color:var(--dfy-ink);font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,"Microsoft YaHei",monospace;tab-size:2}.dfy-panel .dfy-persona:focus-visible{outline:3px solid #559bd780;outline-offset:3px}.dfy-panel .dfy-persona:read-only{background:var(--dfy-soft)}.dfy-panel .dfy-persona-latest{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:12px/1.7 ui-monospace,monospace;margin:10px 0 0}.dfy-panel .dfy-detail{font-size:12px;color:var(--dfy-muted);margin:12px 0}.dfy-panel .dfy-detail summary{cursor:pointer}
@@ -3398,19 +3398,22 @@ window.__ModuleLoader__.load({
           : !failure ? h('p', null, '正在读取生活记录…') : null);
     }
 
-    function MemoryPanel({ active, onDirtyChange, writeBlocked, accounts = [] }) {
+    function MemoryPanel({ active, refreshKey = 0, onDirtyChange, writeBlocked, accounts = [] }) {
+      // 整条可点、就地展开；草稿按条保留互不挡路；低频操作收进「更多」。
       const [deleteChecked, setDeleteChecked] = useState(false);
       const api = usePanelApi();
-      const [snapshot, setSnapshot] = useState(null), [filters, setFilters] = useState({ query: '', kind: 'all', status: 'all', scope: 'all' });
-      const [selected, setSelected] = useState(null), [draft, setDraft] = useState(null), [base, setBase] = useState(null), [revision, setRevision] = useState('');
+      const [snapshot, setSnapshot] = useState(null), [filters, setFilters] = useState({ query: '', status: 'all' });
+      const [selected, setSelected] = useState(null), [drafts, setDrafts] = useState({});
       const [busy, setBusy] = useState(''), [failure, setFailure] = useState(null), [notice, setNotice] = useState('');
       const lock = useRef(false), latest = useRef({}), editorId = useRef('dfy-memory-' + Math.random().toString(36).slice(2));
-      const dirty = Boolean(draft && base && !equal(draft, base));
-      latest.current = { selected, draft, base, dirty, revision };
-      useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
-      useEffect(() => () => { onDirtyChange?.(false); }, [onDirtyChange]);
       const values = (item) => ({ summary: item.summary || '', detail: item.detail || '',
         sourceType: item.provenance?.type === 'inference' ? 'inference' : 'user_explicit', confirmed: item.provenance?.confirmed === true });
+      const entryOf = (item) => drafts[item.id] || { base: values(item), draft: values(item), revision: snapshot?.revision || '' };
+      const dirtyOf = (item) => { const entry = drafts[item.id]; return Boolean(entry && !equal(entry.draft, entry.base)); };
+      const anyDirty = Object.values(drafts).some((entry) => entry && !equal(entry.draft, entry.base));
+      latest.current = { selected, drafts, snapshot };
+      useEffect(() => { onDirtyChange?.(anyDirty); }, [anyDirty, onDirtyChange]);
+      useEffect(() => () => onDirtyChange?.(false), []);
       async function load(offset = snapshot?.offset || 0) {
         if (lock.current) return;
         lock.current = true; setBusy('read'); setFailure(null);
@@ -3418,65 +3421,62 @@ window.__ModuleLoader__.load({
           const params = new URLSearchParams({ ...filters, offset: String(offset), limit: '50' });
           const result = await api.call('memory?' + params);
           const next = result.memory;
-          if (!next || typeof next.revision !== 'string' || !Array.isArray(next.items)) throw new Error('记忆响应不完整');
+          if (!next || typeof next.revision !== 'string' || !Array.isArray(next.items)) throw new Error('对话状态没读全，重新查看一次。');
           if (api.alive.current) {
             setSnapshot(next);
-            const current = latest.current, record = next.items.find((item) => item.id === current.selected?.id);
-            if (!current.dirty) {
-              setSelected(record || null); setDraft(record ? values(record) : null); setBase(record ? values(record) : null); setRevision(next.revision);
-            }
-            setNotice(current.dirty ? '已读取最新记忆；未保存的纠正草稿已保留。' : '');
+            setSelected((previous) => next.items.some((item) => item.id === previous) ? previous : null);
+            setNotice(anyDirty ? '已读取最新记忆；各条的未保存修改仍保留。' : '');
           }
         } catch (error) { if (api.alive.current) setFailure(error); }
         finally { lock.current = false; if (api.alive.current) setBusy(''); }
       }
-      useEffect(() => { if (active && !snapshot) load(0); }, [active]);
-      // 筛选条件变化即自动检索（300ms 防抖），不再要求点击单独的筛选按钮。
+      useEffect(() => { if (active) load(0); }, [active, refreshKey]);
+      // 筛选条件变化即自动检索（300ms 防抖）。
       useEffect(() => {
         if (!active || !snapshot || lock.current) return;
         const timer = setTimeout(() => { if (!lock.current) load(0); }, 300);
         return () => clearTimeout(timer);
       }, [filters]);
-      function open(item) {
-        if (dirty) { setNotice('当前纠正草稿已保留，请先保存或明确放弃草稿。'); return; }
-        setSelected(item); setDraft(values(item)); setBase(values(item)); setRevision(snapshot.revision); setFailure(null); setNotice('');
+      useEffect(() => { setDeleteChecked(false); }, [selected]);
+      function toggle(item) {
+        if (busy) return;
+        setSelected((previous) => previous === item.id ? null : item.id);
+        setNotice(''); setFailure(null);
       }
-      const latestRecord = snapshot?.items.find((item) => item.id === selected?.id);
-      const conflict = Boolean(selected && revision && snapshot?.revision && revision !== snapshot.revision);
-      const valid = draft && draft.summary.trim() && draft.summary.length <= 160 && draft.detail.trim() && draft.detail.length <= 2000;
-      async function mutate(action) {
-        if (lock.current || writeBlocked || !selected || !revision || conflict || action === 'delete' && !deleteChecked
+      const latestRecord = (item) => snapshot?.items.find((row) => row.id === item.id);
+      async function mutate(action, item) {
+        const entry = entryOf(item), d = entry.draft, dirty = !equal(d, entry.base);
+        const valid = d.summary.trim() && d.summary.length <= 160 && d.detail.trim() && d.detail.length <= 2000;
+        const conflict = Boolean(entry.revision && snapshot?.revision && entry.revision !== snapshot.revision);
+        if (lock.current || writeBlocked || action === 'delete' && !deleteChecked
           || action === 'correct' && (!dirty || !valid) || action !== 'correct' && dirty
-          || action === 'restore' && !selected.canRestore || action === 'forget' && selected.status === 'forgotten') return;
+          || action === 'restore' && !item.canRestore || action === 'forget' && item.status === 'forgotten'
+          || conflict && action !== 'restore' && action !== 'delete') return;
         lock.current = true; setBusy(action); setFailure(null); setNotice('');
         try {
-          const result = await api.call('memory/' + action, 'POST', { id: selected.id, revision,
-            ...(action === 'correct' ? { ...draft, confirmed: draft.sourceType === 'inference' ? false : draft.confirmed } : {}) });
+          const result = await api.call('memory/' + action, 'POST', { id: item.id, revision: entry.revision,
+            ...(action === 'correct' ? { ...d, confirmed: d.sourceType === 'inference' ? false : d.confirmed } : {}) });
           if (action === 'delete' && result.memory?.deleted && typeof result.memory.revision === 'string') {
-            if (api.alive.current) { setSnapshot((old) => ({ ...old, revision: result.memory.revision, total: Math.max(0, old.total - 1), items: old.items.filter((row) => row.id !== selected.id) }));
-              setSelected(null); setDraft(null); setBase(null); setRevision(result.memory.revision); setNotice(result.memory.note); setDeleteChecked(false); }
+            if (api.alive.current) {
+              setSnapshot((old) => ({ ...old, revision: result.memory.revision, total: Math.max(0, old.total - 1), items: old.items.filter((row) => row.id !== item.id) }));
+              setDrafts((previous) => { const next = { ...previous }; delete next[item.id]; return next; });
+              setSelected(null); setNotice(result.memory.note); setDeleteChecked(false);
+            }
             return;
           }
           if (!result.memory?.record || typeof result.memory.revision !== 'string') throw new Error('记忆保存回执不完整，请读取最新记忆核对。');
           if (api.alive.current) {
-            const record = result.memory.record;
-            setSelected(record); setDraft(values(record)); setBase(values(record)); setRevision(result.memory.revision);
+            const record = result.memory.record, fresh = values(record);
+            setDrafts((previous) => ({ ...previous, [item.id]: { base: fresh, draft: fresh, revision: result.memory.revision } }));
             setSnapshot((previous) => ({ ...previous, revision: result.memory.revision,
-              items: previous.items.map((item) => item.id === record.id ? record : item) }));
+              items: previous.items.map((row) => row.id === record.id ? record : row) }));
             setNotice(action === 'forget' ? '已不再记住这条内容。历史聊天和备份仍会保留。'
-              : action === 'restore' ? '已撤销该条记忆最近一次修改或停用，请核对当前内容与状态。' : '纠正已保存，后续记忆检索使用新内容；已有聊天上下文不会自动擦除。');
+              : action === 'restore' ? '已撤销该条记忆最近一次修改或停用，请核对当前内容。' : '纠正已保存；之后她回忆时会用新内容。');
           }
         } catch (error) { if (api.alive.current) setFailure(error); }
         finally { lock.current = false; if (api.alive.current) setBusy(''); }
       }
-      const field = (key, label, multiline, maxLength) => h('div', { className: 'dfy-field', key },
-        h('label', { className: 'dfy-label', htmlFor: editorId.current + '-' + key }, label),
-        h(multiline ? 'textarea' : 'input', { id: editorId.current + '-' + key, ...(multiline ? { className: 'dfy-meme-text' } : { type: 'text' }),
-          value: draft?.[key] || '', maxLength, disabled: Boolean(busy), onChange: (event) => { setDraft((previous) => ({ ...previous, [key]: event.target.value })); setNotice(''); } }));
-      useEffect(() => { setDeleteChecked(false); }, [selected?.id]);
       const stateLabel = (item) => item.status === 'forgotten' ? '不再记住' : item.status === 'unconfirmed' ? '待确认' : '已记住';
-      const scopeLabel = (item) => item.scope?.type === 'identity' ? '账号 ' + item.scope.accountId + ' / 身份 ' + item.scope.identityId
-        : '账号 ' + (item.scope?.accountId || '未确认');
       const contextLabel = (item) => {
         const account = (Array.isArray(accounts) ? accounts : []).find((candidate) => candidate.qq === item.scope?.accountId);
         const name = account?.name || (account ? '未命名聊天对象' : '其他聊天对象');
@@ -3486,10 +3486,57 @@ window.__ModuleLoader__.load({
       };
       const provenanceLabel = (item) => item.provenance?.type === 'inference' ? '推测'
         : item.provenance?.type === 'user_explicit' ? '用户明确告知' : '旧记录，来源未进一步确认';
+      const items = snapshot?.items || [];
+      const scopeVariety = new Set(items.map(contextLabel)).size > 1;
+      const editorField = (item, key, label, multiline, maxLength) => {
+        const entry = entryOf(item), d = entry.draft;
+        return h('div', { className: 'dfy-field', key },
+          h('label', { className: 'dfy-label', htmlFor: editorId.current + '-' + item.id + '-' + key }, label),
+          h(multiline ? 'textarea' : 'input', { id: editorId.current + '-' + item.id + '-' + key, ...(multiline ? { className: 'dfy-meme-text' } : { type: 'text' }),
+            value: d[key] || '', maxLength, disabled: Boolean(busy), onChange: (event) => {
+              setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: { ...d, [key]: event.target.value } } }));
+              setNotice('');
+            } }));
+      };
+      const editor = (item) => {
+        const entry = entryOf(item), d = entry.draft, dirty = !equal(d, entry.base);
+        const conflict = Boolean(entry.revision && snapshot?.revision && entry.revision !== snapshot.revision);
+        return h('div', { style: { marginTop: 10 } },
+          conflict ? h('div', { className: 'dfy-notice dfy-warning' }, '最新记忆版本已变化，当前草稿尚未覆盖它。',
+            latestRecord(item) ? h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy), onClick: () => {
+              const fresh = values(latestRecord(item));
+              const changed = Object.fromEntries(Object.entries(d).filter(([key, value]) => !equal(value, entry.base[key])));
+              setDrafts((previous) => ({ ...previous, [item.id]: { base: fresh, draft: { ...fresh, ...changed }, revision: snapshot.revision } }));
+              setFailure(null);
+            } }, '采用最新版本，保留我修改的字段') : h('p', null, '当前列表未包含这条记忆，请先核对筛选条件。')) : null,
+          editorField(item, 'summary', '摘要', false, 160), editorField(item, 'detail', '具体内容', true, 2000),
+          writeBlocked ? h('p', { className: 'dfy-hint' }, '当前有任务处理或配置待应用；草稿会保留，稍后再保存。') : null,
+          h('div', { className: 'dfy-inline-actions', style: { marginTop: 12 } },
+            h('button', { type: 'button', className: 'dfy-button dfy-primary', disabled: Boolean(busy) || writeBlocked || !dirty || conflict, onClick: () => mutate('correct', item) }, busy === 'correct' ? '保存中…' : '保存纠正'),
+            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || item.status === 'forgotten', onClick: () => mutate('forget', item) }, '不再记住'),
+            h('span', { className: 'dfy-hint', style: { alignSelf: 'center', margin: 0 } }, '不再记住后，历史聊天和备份仍会保留。')),
+          h(Advanced, { key: 'more', title: '更多' },
+            h('div', { className: 'dfy-field' },
+              h('label', { className: 'dfy-label', htmlFor: editorId.current + '-' + item.id + '-source' }, '内容依据'),
+              h('select', { id: editorId.current + '-' + item.id + '-source', value: d.sourceType, disabled: Boolean(busy), onChange: (event) =>
+                setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: { ...d, sourceType: event.target.value, confirmed: event.target.value === 'inference' ? false : d.confirmed } } })) },
+              h('option', { value: 'user_explicit' }, '用户明确告知'), h('option', { value: 'inference' }, '推测，尚需本人确认'))),
+            h('label', { className: 'dfy-toggle' }, h('span', { className: 'dfy-toggle-copy' }, '这条内容已由本人确认'),
+              h('input', { type: 'checkbox', checked: d.confirmed, disabled: Boolean(busy) || d.sourceType === 'inference',
+                'aria-label': '记忆已由本人确认', onChange: (event) =>
+                  setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: { ...d, confirmed: event.target.checked } } })) })),
+            h('p', { className: 'dfy-meta' }, contextLabel(item), ' · 来源：', item.source || '未确认', ' · ', provenanceLabel(item)),
+            item.history?.length ? item.history.map((row, index) => h('p', { key: index, className: 'dfy-meta' }, displayTime(row.at), ' · ',
+              { correct: '纠正内容', forget: '不再记住', restore: '撤销最近修改' }[row.action] || '记忆变更', row.summary ? ' · ' + row.summary : '')) : null,
+            dirty ? h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy), onClick: () =>
+              setDrafts((previous) => ({ ...previous, [item.id]: { ...entryOf(item), draft: entry.base } })) }, '放弃此条的修改') : null,
+            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !item.canRestore, onClick: () => mutate('restore', item) }, '撤销最近一次修改'),
+            h('label', null, h('input', { type: 'checkbox', checked: deleteChecked, disabled: Boolean(busy) || writeBlocked || dirty || conflict,
+              onChange: (event) => setDeleteChecked(event.target.checked) }), ' 确认删除此条原档案与更正历史；DSH聊天和外部备份仍保留'),
+            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !deleteChecked, onClick: () => mutate('delete', item) }, '删除这条记忆')));
+      };
       return h('section', { className: 'dfy-section', 'aria-label': '记忆管理' },
-        h(SectionHeading, { title: '记忆', help: '查看大肥鱼记住的内容，发现错误可以纠正，也可以选择不再记住。修改会影响后续回忆，历史聊天、已有对话和备份仍会保留。' },
-          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy), onClick: () => load() }, busy === 'read' ? '读取中…' : '读取最新记忆')),
-        h('p', { className: 'dfy-description' }, '这里是长期记忆目录：查找明确记住的事实、资料和重要旧事，再打开所需内容。近期聊天细节在“生活与成长”中随时间更替；没有自动把所有聊天永久保存。'),
+        h(SectionHeading, { title: '记忆', help: '她长期记住的事实、资料和重要旧事。点开一条可以纠正或选择不再记住；修改影响她之后的回忆，历史聊天和备份仍保留。近期聊天细节在「生活与成长」里。' }),
         failure?.code === 'DELETE_PENDING' ? h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy), onClick: async () => {
           if (lock.current) return; lock.current = true; setBusy('delete');
           try { const value = await api.call('memory/resume-delete', 'POST', { confirmed: true }); setFailure(null); setNotice(value.memory.note); }
@@ -3497,62 +3544,29 @@ window.__ModuleLoader__.load({
         } }, '确认完成中断的记忆删除（不可撤销）') : null,
         h('div', { className: 'dfy-toolbar', style: { marginTop: 2 } },
           h('div', { className: 'dfy-field', style: { flex: 1, minWidth: 180 } }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-query' }, '搜索记忆'),
-            h('input', { id: editorId.current + '-query', type: 'text', value: filters.query, maxLength: 200, disabled: Boolean(busy) || dirty,
+            h('input', { id: editorId.current + '-query', type: 'text', value: filters.query, maxLength: 200, disabled: Boolean(busy) || anyDirty,
               placeholder: '改完自动检索', onChange: (event) => setFilters((previous) => ({ ...previous, query: event.target.value })) })),
-          ...[['status', '状态', [['all', '全部'], ['active', '已记住'], ['forgotten', '不再记住'], ['unconfirmed', '待确认']]],
-            ['kind', '类型', [['all', '全部'], ['fact', '事实'], ['event', '事件']]],
-            ['scope', '范围', [['all', '全部'], ['account', '账号'], ['identity', '身份']]]].map(([key, label, options]) =>
-          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-' + key }, label),
-            h('select', { id: editorId.current + '-filter-' + key, value: filters[key], disabled: Boolean(busy) || dirty,
-              onChange: (event) => setFilters((previous) => ({ ...previous, [key]: event.target.value })) },
-              options.map(([value, name]) => h('option', { value, key: value }, name)))))),
+          h('div', { className: 'dfy-field' }, h('label', { className: 'dfy-label', htmlFor: editorId.current + '-filter-status' }, '状态'),
+            h('select', { id: editorId.current + '-filter-status', value: filters.status, disabled: Boolean(busy) || anyDirty,
+              onChange: (event) => setFilters((previous) => ({ ...previous, status: event.target.value })) },
+              [['all', '全部'], ['active', '已记住'], ['forgotten', '不再记住'], ['unconfirmed', '待确认']].map(([value, name]) => h('option', { value, key: value }, name))))),
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert', style: { marginTop: 12 } }, failure.code === 'CONFLICT'
           ? '记忆已被其他操作修改。草稿已保留，请读取最新记忆，再核对采用。' : resourceError(failure)) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status', style: { marginTop: 12 } }, notice) : null,
         snapshot ? h(React.Fragment, null,
-          h('p', { className: 'dfy-meta', style: { marginTop: 12 } }, '共 ', snapshot.total, ' 条；本页 ', snapshot.items.length, ' 条', snapshot.truncated ? ' · 还有更多结果，可翻到下一页' : ''),
-          snapshot.items.length ? snapshot.items.map((item) => h('article', { className: 'dfy-suite-component', key: item.id },
-            h('div', { className: 'dfy-resource-heading' }, h('strong', null, item.summary), h('span', { className: 'dfy-badge' }, stateLabel(item))),
-            h('p', { className: 'dfy-hint' }, contextLabel(item)),
-            h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy) || dirty && selected?.id !== item.id,
-              'aria-label': '查看与纠正记忆：' + item.summary + '，' + contextLabel(item), 'data-memory-id': item.id,
-              onClick: () => open(item) }, '查看与纠正'))) : h('div', { className: 'dfy-empty' }, '没有找到记忆，可以换个关键词或状态。'),
-          h('div', { className: 'dfy-toolbar' }, h('span', { className: 'dfy-meta' }, '第 ', Math.floor(snapshot.offset / 50) + 1, ' 页'),
+          h('div', { className: 'dfy-toolbar' },
+            h('span', { className: 'dfy-meta' }, '共 ', snapshot.total, ' 条 · 第 ', Math.floor(snapshot.offset / 50) + 1, ' 页', snapshot.truncated ? ' · 还有更多' : ''),
             h('div', { className: 'dfy-inline-actions' },
-              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || dirty || snapshot.offset < 50, onClick: () => load(Math.max(0, snapshot.offset - 50)) }, '上一页记忆'),
-              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || dirty || snapshot.offset + snapshot.limit >= snapshot.total, onClick: () => load(snapshot.offset + snapshot.limit) }, '下一页记忆')))) : null,
-        selected && draft ? h('div', { className: 'dfy-meme-editor', 'aria-label': '纠正记忆编辑器' },
-          h('h3', null, '这条记忆'), h('p', { className: 'dfy-meta' }, contextLabel(selected), ' · ', stateLabel(selected), dirty ? ' · 有未保存的修改' : ''),
-          conflict ? h('div', { className: 'dfy-notice dfy-warning' }, '最新记忆版本已变化，当前草稿尚未覆盖它。',
-            latestRecord ? h('button', { type: 'button', className: 'dfy-link-button', disabled: Boolean(busy), onClick: () => {
-              const nextBase = values(latestRecord), changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => !equal(value, base[key])));
-              setSelected(latestRecord); setBase(nextBase); setDraft({ ...nextBase, ...changed }); setRevision(snapshot.revision); setFailure(null);
-            } }, '采用最新记忆版本，保留我修改的字段') : h('p', null, '当前列表未包含这条记忆，请先核对筛选条件或放弃草稿。')) : null,
-          field('summary', '记忆摘要', false, 160), field('detail', '具体内容', true, 2000),
-          h('div', { className: 'dfy-field', style: { marginTop: 12 } },
-            h('label', { className: 'dfy-label', htmlFor: editorId.current + '-source' }, '内容依据'),
-            h('select', { id: editorId.current + '-source', value: draft.sourceType, disabled: Boolean(busy), onChange: (event) =>
-              setDraft((previous) => ({ ...previous, sourceType: event.target.value, confirmed: event.target.value === 'inference' ? false : previous.confirmed })) },
-            h('option', { value: 'user_explicit' }, '用户明确告知'), h('option', { value: 'inference' }, '推测，尚需本人确认'))),
-          h('label', { className: 'dfy-toggle' }, h('span', { className: 'dfy-toggle-copy' }, '这条内容已由本人确认'),
-            h('input', { type: 'checkbox', checked: draft.confirmed, disabled: Boolean(busy) || draft.sourceType === 'inference',
-              'aria-label': '记忆已由本人确认', onChange: (event) => setDraft((previous) => ({ ...previous, confirmed: event.target.checked })) })),
-          h(Advanced, { title: '来源与修改记录' },
-            h('p', { className: 'dfy-meta' }, scopeLabel(selected), ' · 来源：', selected.source || '未确认', ' · ', provenanceLabel(selected)),
-            selected.history?.length ? selected.history.map((item, index) => h('p', { key: index }, displayTime(item.at), ' · ',
-              { correct: '纠正内容', forget: '不再记住', restore: '撤销最近修改' }[item.action] || '记忆变更', item.summary ? ' · ' + item.summary : ''))
-              : h('p', { className: 'dfy-meta' }, '暂无修改记录。')),
-          writeBlocked ? h('p', { className: 'dfy-hint' }, '当前有任务处理、服务维护或配置待应用；可查看和保留草稿，稍后再保存记忆。') : null,
-          h('p', { className: 'dfy-hint' }, '选择不再记住后，历史聊天和备份仍会保留。'),
-          h('div', { className: 'dfy-inline-actions', style: { marginTop: 12 } },
-            dirty ? h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy), onClick: () => {
-              const record = latestRecord || selected; setSelected(record); setDraft(values(record)); setBase(values(record)); setRevision(snapshot.revision); setFailure(null);
-            } }, '放弃记忆纠正草稿') : null,
-            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || selected.status === 'forgotten', onClick: () => mutate('forget') }, '不再记住'),
-            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !selected.canRestore, onClick: () => mutate('restore') }, '撤销最近一次修改或停用'),
-            h('label', null, h('input', { type: 'checkbox', checked: deleteChecked, onChange: (event) => setDeleteChecked(event.target.checked) }), ' 确认删除此条原档案与更正历史；DSH聊天和外部备份仍保留'),
-            h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || writeBlocked || dirty || conflict || !deleteChecked, onClick: () => mutate('delete') }, '删除受管原始记忆'),
-            h('button', { type: 'button', className: 'dfy-button dfy-primary', disabled: Boolean(busy) || writeBlocked || !dirty || !valid || conflict, onClick: () => mutate('correct') }, busy === 'correct' ? '保存纠正中…' : '保存记忆纠正'))) : null);
+              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || anyDirty || snapshot.offset < 50, onClick: () => load(Math.max(0, snapshot.offset - 50)) }, '上一页'),
+              h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy) || anyDirty || snapshot.offset + snapshot.limit >= snapshot.total, onClick: () => load(snapshot.offset + snapshot.limit) }, '下一页'))),
+          items.length ? items.map((item) => h('article', { key: item.id, className: 'dfy-suite-component' },
+            h('button', { type: 'button', className: 'dfy-memory-row', onClick: () => toggle(item), 'data-memory-id': item.id, 'aria-expanded': selected === item.id,
+              'aria-label': '查看与纠正记忆：' + item.summary + (scopeVariety ? '，' + contextLabel(item) : '') },
+              h('div', { className: 'dfy-resource-heading' }, h('strong', null, item.summary),
+                h('span', { className: 'dfy-badge' }, stateLabel(item) + (dirtyOf(item) ? ' · 有修改' : ''))),
+              scopeVariety ? h('p', { className: 'dfy-hint' }, contextLabel(item)) : null),
+            selected === item.id ? editor(item) : null))
+            : h('div', { className: 'dfy-empty' }, '没有找到记忆，可以换个关键词或状态。')) : h('p', { className: 'dfy-meta' }, '正在读取记忆…'));
     }
     function Panel() {
       const [snapshot, setSnapshot] = useState(null);
@@ -4202,6 +4216,7 @@ window.__ModuleLoader__.load({
                       revokeBlocked: blocked || runtime.applying === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty,
                       cancelBlocked: blocked || runtime.applying === true })
                     : key === 'memory' ? h(MemoryPanel, { active: tab === 'memory', onDirtyChange: setMemoryDirty, accounts: runningAccounts.length ? runningAccounts : editedAccounts,
+                      refreshKey: resourceRefreshKey,
                       writeBlocked: blocked || runtime.busy === true || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty })
                       : h(PersonaPanel, { onDirtyChange: setPersonaDirty }) : null;
       const activeGroup = tabGroups.find((group) => group.id === tab || group.children.includes(tab));
