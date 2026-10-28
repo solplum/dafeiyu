@@ -3432,12 +3432,13 @@ window.__ModuleLoader__.load({
         if (lock.current || armedClear !== true) return;
         lock.current = true; setBusy('clear'); setFailure(null); setNotice('');
         let done = false;
+        let note = '';
         try {
           const result = await api.call('memory/clear', 'POST', {});
-          if (api.alive.current) { setNotice(result.memory?.note || '已清空全部记忆。'); done = true; }
+          if (api.alive.current) { note = result.memory?.note || '已清空全部记忆。'; done = true; }
         } catch (error) { if (api.alive.current) setFailure(error); }
         finally { lock.current = false; setArmedClear(false); if (api.alive.current) setBusy(''); }
-        if (done) await load(0);
+        if (done) { await load(0); if (api.alive.current) setNotice(note); }
       }
       // 筛选条件变化即自动检索（300ms 防抖）。
       useEffect(() => {
