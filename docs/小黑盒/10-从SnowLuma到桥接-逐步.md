@@ -253,11 +253,11 @@ notepad config.json
 
 ```jsonc
 {
-  "ownerQQ": "3776013884",              // ① 你的 QQ 号（主人，最高权限、不会被 Ignore）
+  "ownerQQ": "10001",              // ① 你的 QQ 号（主人，最高权限、不会被 Ignore）
 
   "allow": {
-    "private": ["2542965840", "3776013884"],   // ② 白名单：她的号 + 你的号，别的号一律不理
-    "groups":  ["1055935861"],                 //    要聊的群（没有群就留空数组）
+    "private": ["10002", "10001"],   // ② 白名单：她的号 + 你的号，别的号一律不理
+    "groups":  ["10003"],                 //    要聊的群（没有群就留空数组）
     "allowAllWhenEmpty": false                 //    别开！开了谁都能跟她说话
   },
 
@@ -314,7 +314,7 @@ notepad config.json
 ```
 SnowLuma 首次连接未成功（将在后台自动重连并尝试自愈 WS token）: ...
 SnowLuma 连接断开（code=1006），重连中…
-   自愈完成：账号 2542965840（close code=1006）
+   自愈完成：账号 10002（close code=1006）
 SnowLuma 已连接：ws://127.0.0.1:3001        ← 看到这一行才算真的连上
 ```
 
@@ -391,11 +391,11 @@ $h = @{ 'x-console-token' = $t }
 
 # ① 把某个会话的"正在跑"状态清掉
 Invoke-RestMethod 'http://127.0.0.1:3100/api/session/reset' -Method POST -Headers $h `
-  -ContentType 'application/json' -Body '{"key":"private:3776013884"}'
+  -ContentType 'application/json' -Body '{"key":"private:10001"}'
 
 # ② 手动戳一下，让她立刻看有没有新消息
 Invoke-RestMethod 'http://127.0.0.1:3100/api/socialV2/wake' -Method POST -Headers $h `
-  -ContentType 'application/json' -Body '{"key":"private:3776013884"}'
+  -ContentType 'application/json' -Body '{"key":"private:10001"}'
 ```
 
 （`key` 的格式：私聊 `private:<QQ号>`，群 `group:<群号>`）
