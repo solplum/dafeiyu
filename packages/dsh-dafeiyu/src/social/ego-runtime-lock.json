@@ -1,0 +1,24 @@
+{
+  "package": "dsh-ego-browser",
+  "version": "0.9.2-dfy.1",
+  "source": "current installed managed runtime, no third-party modifications",
+  "files": {
+    "runtime/ego-linux/bin/ego-browser.mjs": "0d6d31e932f27bed3770a8bfc6b884d08aa6200a13f5d07b1ddeedd1da2d3b8f",
+    "runtime/ego-linux/src/transport.mjs": "40e4d6a616e28ad14a6a3e0f3c13c15ff41c1da5483ef97f4d46b35444bda049",
+    "runtime/ego-linux/src/spaces-server.mjs": "e6486907e28a077ca04924f833e74e1a66d252f50d61d6ac47cdcd9b48c50368",
+    "runtime/ego-linux/src/window-fit.mjs": "2d69978b5dcc70592588313ac75fcd3f50682c55efb25e808556e2ff6161087e",
+    "runtime/ego-linux/src/chrome.mjs": "256d1061b928da80ada829c1ebf9894d20511f646b828b03a0e7480444eff208",
+    "runtime/ego-linux/src/agent-identity.mjs": "d6191aded569f1f5127e35c1ebf4be0007fb63756a295fa0e1c04297f6aef93a",
+    "runtime/ego-linux/src/shim.mjs": "17784d29dd8959c99af66f1556099dc27d2ef027057f6317b7a4bcc1273b8285",
+    "runtime/ego-linux/src/paths.mjs": "256c07bab37e71d4be8f345273f784badbd75d8a27779650e2c0b55be5efe1a5",
+    "runtime/ego-linux/src/tabs.mjs": "c5ac612bf3164dfa5d3398f30fec54fe7cb25e2b4abb175c237c48b5b43c44b5",
+    "runtime/ego-linux/src/cursor.mjs": "68973de471193244af35205d5816acf5377948ec0ce630031c42df70d9e7953a",
+    "runtime/ego-linux/src/spaces-ui.mjs": "a52b0384642a08c099525d80a923e69969d5decadd773398ed1ec861db600726",
+    "runtime/ego-linux/src/desktop.mjs": "0af6ed545c9e77c1970b7098ead8543156d807d21b3001d3864436b7106c1bf7",
+    "runtime/ego-linux/src/task-spaces.mjs": "9f57f5566440904bf18f6aaf4abe003aeaba4557c00ed50b2634f5beaafc5cc4",
+    "runtime/ego-linux/src/session.mjs": "2a5c23813570a2c5488a603b2dc8a9f6a5d7c073d0a0b06d780adc5e371da933",
+    "runtime/ego-linux/src/snapshot.mjs": "2c2807e92d2768d4f7f85b45b5a18286900bcb9d1b20f19a40c10afe19d0c644",
+    "runtime/ego-browser/screenshot-clip.mjs": "07cf6c5725a5935be478c347b3588e9a31312ff2344194ab4d092224f2aa203d",
+    "runtime/ego-browser/dist/out/index.js": "a39d995a6f55ac4d680898b70641ed11af0317b88213cdd8939c5af29ea4f521"
+  }
+}

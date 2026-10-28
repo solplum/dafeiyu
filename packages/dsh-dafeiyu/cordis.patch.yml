@@ -1,0 +1,7 @@
+# Bundle owns this insertion; do not duplicate it in the profile user patch.
+# Runtime opt-ins come from local/private or explicit profile configuration.
+# Unconfigured flags remain disabled by the plugin's strict === true checks.
+- insert:
+    - id: dsh-dafeiyu
+      name: dsh-dafeiyu
+      config: {}
