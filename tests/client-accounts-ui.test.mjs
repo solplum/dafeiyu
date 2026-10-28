@@ -206,13 +206,16 @@ function fixture({ model = { providers: [], writable: false, speech: { providers
   const text = (node = tree) => typeof node === 'string' ? node : node?.props?.hidden ? '' : node?.props?.children.map((child) => text(child)).join('') || '';
   const aliases = { 'QQ 连接': 'QQ账号', '当前状态': '首页', '账号与身份': '聊天对象',
     '管理用户账号与身份': '聊天对象', '管理账号与关系': '聊天对象', '依赖与更新': '安装与更新', '手机权限': '手机',
-    '保存': '仅保存', '保存并应用': '保存并生效', '停用 / 遗忘此条': '不再记住',
+    '仅保存': '保存', '保存并生效': '保存', '保存并应用': '保存', '刷新': '刷新状态', '停用 / 遗忘此条': '不再记住',
     '打开 QQ 服务维护': '管理 QQ 服务', '获取当前二维码': '显示二维码', '检测手机连接': '检查连接' };
   const button = (label) => nodes().find((node) => ['button', 'summary'].includes(node.type) && [label, aliases[label]].includes(text(node)));
+  const groupOf = { 'QQ账号': '聊天', '聊天对象': '聊天', '任务': '聊天', '性格': '她', '记忆': '她',
+    '表情包': '她', '生活与成长': '她', '模型服务': '高级', '声音': '高级', '手机': '高级',
+    '安装与更新': '高级', '视频平台': '高级', '功能': '高级' };
   async function click(label) {
     let target = button(label);
-    if (!target && ['QQ账号', '聊天对象', '模型服务', '声音', '性格', '手机', '安装与更新'].includes(aliases[label] || label)) {
-      await click('设置'); target = button(label);
+    if (!target && groupOf[aliases[label] || label]) {
+      await click(groupOf[aliases[label] || label]); target = button(label);
     }
     assert(target, 'Missing button: ' + label); assert(!target.props.disabled, 'Disabled button: ' + label);
     if (target.props.onClick) target.props.onClick();
@@ -257,16 +260,17 @@ function fixture({ model = { providers: [], writable: false, speech: { providers
   };
 }
 
-test('ordinary navigation includes life and settings exposes every category and settings exposes every category without dispatching writes', async (t) => {
+test('ordinary navigation exposes four groups and every page without dispatching writes', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush();
   const main = () => f.nodes().find((node) => node.props.role === 'tablist' && node.props['aria-label'] === '大肥鱼');
-  assert.deepEqual(main().props.children.map((node) => f.text(node)), ['首页', '功能', '任务', '表情包', '记忆', '生活与成长', '设置']);
-  assert.equal(f.nodes().filter((node) => node.props.role === 'tab').length, 7);
-  const openingCalls = f.calls.length; await f.click('设置');
-  assert.equal(f.calls.length, openingCalls, 'opening the settings index does not start a service check or write');
-  for (const [label, key] of [['QQ账号', 'qq'], ['聊天对象', 'accounts'], ['模型服务', 'model'], ['声音', 'voice'],
-    ['性格', 'persona'], ['手机', 'phone'], ['安装与更新', 'dependencies']]) {
-    await f.click('设置'); await f.click(label);
+  assert.deepEqual(main().props.children.map((node) => f.text(node)), ['首页', '她', '聊天', '高级']);
+  assert.equal(f.nodes().filter((node) => node.props.role === 'tab').length, 4, 'the home view has no secondary tabs');
+  const openingCalls = f.calls.length; await f.click('高级');
+  assert.equal(f.calls.slice(openingCalls).filter((call) => call.method === 'POST').length, 0,
+    'opening a group may read its first page but never writes');
+  for (const [label, key, group] of [['QQ账号', 'qq', '聊天'], ['聊天对象', 'accounts', '聊天'], ['模型服务', 'model', '高级'], ['声音', 'voice', '高级'],
+    ['性格', 'persona', '她'], ['手机', 'phone', '高级'], ['安装与更新', 'dependencies', '高级']]) {
+    await f.click(group); await f.click(label);
     assert(f.nodes().some((node) => node.props.role === 'tabpanel' && node.props.id?.endsWith('-content-' + key)), label + ' opens its own page');
     assert(f.nodes().some((node) => node.props.role === 'tab' && f.text(node) === label && node.props['aria-selected'] === true));
     assert(!f.text().includes('Unexpected API'), label + ' is backed by the expected read-only fixtures');
@@ -324,8 +328,9 @@ test('life panel integrates with consumer navigation and retains its unsaved-dra
   const checkbox = f.nodes(label).find((node) => node.type === 'input');
   checkbox.props.onChange({ target: { checked: true } }); await f.flush();
   const tab = () => f.nodes().find((node) => node.props.role === 'tab' && f.text(node) === '生活与成长');
+  const herTab = () => f.nodes().find((node) => node.props.role === 'tab' && f.text(node) === '她');
   assert.equal(tab().props['data-dirty'], true);
-  await f.click('首页'); assert.equal(tab().props['data-dirty'], true, 'navigation preserves the child draft');
+  await f.click('首页'); assert.equal(herTab().props['data-dirty'], true, 'navigation preserves the child draft on the group tab');
   await f.click('生活与成长'); await f.click('保存记忆与成长设置');
   assert.equal(tab().props['data-dirty'], undefined);
   assert.equal(f.calls.filter((call) => call.method === 'POST').length, 1);
@@ -443,23 +448,21 @@ test('startup failure offers one explicit retry without configuration changes an
   }
 });
 
-test('parent configuration drafts mark their category, the main settings tab and the settings index across navigation', async (t) => {
-  for (const [category, suffix, nextValue] of [['手机', '-phoneDevice', 'fixture-phone:5555'],
-    ['QQ账号', '-onebotSelfId', '457'], ['聊天对象', '-account-name', '新的账号备注']]) {
+test('parent configuration drafts mark their own page tab and the group tab across navigation', async (t) => {
+  for (const [category, suffix, nextValue, group] of [['手机', '-phoneDevice', 'fixture-phone:5555', '高级'],
+    ['QQ账号', '-onebotSelfId', '457', '聊天'], ['聊天对象', '-account-name', '新的账号备注', '聊天']]) {
     const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click(category); await f.change(suffix, nextValue);
     const tab = (label) => f.nodes().find((node) => node.props.role === 'tab' && f.text(node) === label);
-    assert.equal(tab(category).props['data-dirty'], true, category + ' marks its own settings tab');
-    assert.equal(tab('设置').props['data-dirty'], true, category + ' marks the main settings tab');
-    await f.click('首页'); assert.equal(tab('设置').props['data-dirty'], true, 'the marker survives leaving settings');
-    await f.click('设置');
-    const choices = f.nodes().find((node) => node.props.className === 'dfy-settings-choices');
-    const choice = choices.props.children.find((node) => f.text(node) === category);
-    assert.equal(choice.props['data-dirty'], true, category + ' remains discoverable from the settings index');
+    assert.equal(tab(category).props['data-dirty'], true, category + ' marks its own page tab');
+    assert.equal(tab(group).props['data-dirty'], true, category + ' marks its group tab');
+    await f.click('首页'); assert.equal(tab(group).props['data-dirty'], true, 'the marker survives leaving the group');
+    await f.click(group);
+    assert.equal(tab(category).props['data-dirty'], true, category + ' keeps its draft marker inside the group');
     assert.equal(f.calls.filter((call) => call.method === 'POST').length, 0, 'draft marking and navigation are passive');
   }
 });
 
-test('explicit configuration discard restores the latest read snapshot and CAS baseline while preserving independent persona drafts', async (t) => {
+test('single save keeps drafts across refresh, unblocks after the child draft is saved, and resyncs the revision automatically', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('性格');
   const personaEditor = () => f.nodes().find((node) => node.type === 'textarea' && node.props.id?.startsWith('dfy-persona-'));
   personaEditor().props.onChange({ target: { value: 'fixture independent personality draft' } }); await f.flush();
@@ -467,31 +470,32 @@ test('explicit configuration discard restores the latest read snapshot and CAS b
   const externalAccount = primaryAccount(); externalAccount.identities[0].name = '外部已保存身份';
   f.externalChange({ qqAccounts: [externalAccount] }); await f.click('刷新');
   assert.equal(f.field('-identity-name').props.value, 'fixture unsaved identity', 'refresh still preserves the local draft');
-  const beforeDiscard = f.calls.length; await f.click('放弃未保存修改');
-  assert.equal(f.field('-identity-name').props.value, '外部已保存身份');
-  assert.equal(f.button('放弃未保存修改'), undefined); assert.equal(f.button('仅保存'), undefined);
-  assert.equal(f.calls.length, beforeDiscard, 'discard performs no save, apply, refresh or child-resource request');
+  assert.equal(f.button('放弃未保存修改'), undefined, 'the single-save footer no longer offers a discard action');
+  assert.equal(f.field('-identity-name').props.value, 'fixture unsaved identity', 'without discard the draft simply stays');
   await f.click('性格'); assert.equal(personaEditor().props.value, 'fixture independent personality draft');
   assert.equal(f.button('保存性格').props.disabled, false, 'the independent draft remains editable and unsaved');
+  await f.click('保存性格');
   await f.click('聊天对象'); await f.change('-identity-name', 'fixture new identity');
-  assert.equal(f.button('保存并生效').props.disabled, true, 'the preserved independent draft continues to block applying');
-  await f.click('仅保存');
-  const writes = f.calls.filter((call) => call.method === 'POST');
-  assert.equal(writes.length, 1); assert.equal(writes[0].route, 'config');
-  assert.equal(writes[0].payload.revision, 'fixture-2', 'a subsequent explicit save uses the restored snapshot revision');
-  assert.equal(writes[0].payload.patch.qqAccounts[0].identities[0].name, 'fixture new identity');
+  assert.equal(f.button('保存').props.disabled, false, 'saving the child draft unblocks the global save');
+  await f.click('保存');
+  const write = f.calls.filter((call) => call.method === 'POST' && call.route === 'config').at(-1).payload;
+  assert.equal(write.revision, 'fixture-2', 'the single save auto-resyncs to the externally refreshed revision');
+  assert.equal(write.patch.qqAccounts[0].identities[0].name, 'fixture new identity');
+  assert.equal(f.calls.filter((call) => call.method === 'POST' && call.route === 'apply').length >= 1, true, 'save applies immediately');
 });
 
-test('explicit configuration discard clears secret drafts and clear-secret intent without writing a credential', async (t) => {
+test('secret drafts have no discard action and are only written by the explicit single save', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('QQ账号');
   const advanced = f.nodes().filter((node) => node.type === 'summary' && f.text(node) === '高级设置').at(-1);
   advanced.props.onClick({ preventDefault() {} }); await f.flush();
-  await f.change('-token', 'fixture-secret-draft'); await f.click('放弃未保存修改');
-  assert.equal(f.field('-token').props.value, ''); assert.equal(f.button('放弃未保存修改'), undefined);
-  await f.change('-token-clear', undefined, true); assert.equal(f.field('-token-clear').props.checked, true);
-  await f.click('放弃未保存修改'); assert.equal(f.field('-token-clear').props.checked, false);
-  assert.equal(f.field('-token').props.value, ''); assert.equal(f.field('-token').props.disabled, false);
-  assert.equal(f.calls.some((call) => call.method === 'POST'), false);
+  await f.change('-token', 'fixture-secret-draft');
+  assert.equal(f.button('放弃未保存修改'), undefined, 'no discard action exists in the single-save model');
+  assert.equal(f.field('-token').props.value, 'fixture-secret-draft', 'the secret draft is kept until an explicit save');
+  const before = f.calls.filter((call) => call.method === 'POST').length;
+  assert.equal(before, 0, 'nothing is written until the user saves');
+  await f.click('保存');
+  const config = f.calls.filter((call) => call.method === 'POST' && call.route === 'config').at(-1).payload;
+  assert.equal(config.patch.onebotAccessToken, 'fixture-secret-draft', 'the secret only reaches disk on the explicit save');
 });
 
 test('applying a fresh configuration draft shows the temporary QQ interruption beside the action before any save', async (t) => {
@@ -513,8 +517,12 @@ test('implicit root form submission preserves unrelated drafts and only the expl
   assert(prevented); assert.equal(f.calls.filter((call) => call.method === 'POST').length, 0, 'Enter in a separate editor cannot save another page');
   assert.equal(f.field('-detail').props.value, '当前记忆纠正仍未保存。');
   assert.equal(f.button('仅保存').props.type, 'button', 'the global save is never an implicit form submit target');
+  assert.equal(f.button('仅保存').props.disabled, false, 'an independent memory draft never disables the global save');
   await f.click('仅保存');
-  const writes = f.calls.filter((call) => call.method === 'POST'); assert.equal(writes.length, 1); assert.equal(writes[0].route, 'config');
+  const writes = f.calls.filter((call) => call.method === 'POST');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].route, 'config', 'the connection draft is written by the single save');
+  assert(f.text().includes('独立草稿'), 'with a child draft present the save writes but defers the apply');
   assert.deepEqual(writes[0].payload.patch, { phoneDevice: 'fixture-phone:5555' });
   assert.equal(f.field('-detail').props.value, '当前记忆纠正仍未保存。', 'explicit connection save does not discard the independent memory draft');
 });
@@ -545,8 +553,7 @@ test('native account and relationship editor preserves independent drafts and su
   assert.equal(identity.userRole, ''); assert.equal(identity.companionRole, '');
   assert.equal(identity.userTitle, ''); assert.equal(identity.companionTitle, '');
   assert.equal(identity.description, '我是船长，大肥鱼是领航员，一同航海，喜欢轻松地聊见闻。');
-  assert.equal(f.state.config.running.qqAccounts.length, 1, 'saving does not claim runtime apply');
-  await f.click('保存并应用'); assert.equal(f.state.config.running.qqAccounts.length, 2);
+  assert.equal(f.state.config.running.qqAccounts.length, 2, 'the single save writes and applies in one action');
   await f.click('当前状态'); assert(f.text().includes('船长')); assert(f.text().includes('自定义'));
   assert.equal(f.calls.filter((call) => call.route === 'apply').length, 1);
   assert.equal(f.calls.filter((call) => ['napcat/qrcode', 'phone/check', 'phone/connect', 'model/test', 'voice/check'].includes(call.route)).length, 0);
@@ -573,15 +580,16 @@ test('primary QQ edits are atomic, users may be disabled, identity deletion reta
   assert.equal(payload.patch.qqAccounts[0].activeIdentityId, payload.patch.qqAccounts[0].identities[0].id);
 });
 
-test('relationship drafts preserve CAS revision until the user explicitly adopts the latest configuration', async (t) => {
+test('relationship drafts survive an external change; one save auto-resyncs and keeps unrelated external settings', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush(); await f.click('账号与身份');
   await f.change('-relation', 'partners'); await f.change('-identity-description', '自定义相处说明');
   f.externalChange({ voiceTranscription: true }); await f.click('保存');
-  assert(f.text().includes('fixture revision conflict')); assert.equal(f.field('-identity-description').props.value, '自定义相处说明');
-  await f.click('刷新'); assert(f.text().includes('草稿已保留')); assert.equal(f.field('-identity-description').props.value, '自定义相处说明');
-  await f.click('采用新版本，保留可编辑草稿'); await f.click('保存');
-  const payload = f.calls.filter((call) => call.route === 'config').at(-1).payload;
-  assert.equal(payload.revision, 'fixture-2'); assert.deepEqual(Object.keys(payload.patch), ['qqAccounts']);
+  const configs = f.calls.filter((call) => call.method === 'POST' && call.route === 'config');
+  assert.equal(configs.length, 2, 'a revision conflict is retried exactly once after an automatic resync');
+  assert.equal(f.calls.filter((call) => call.route === 'config')[0].method, 'POST');
+  assert.equal(configs[1].payload.revision, 'fixture-2', 'the retry adopts the external revision without user action');
+  assert.deepEqual(Object.keys(configs[1].payload.patch), ['qqAccounts']);
+  assert.equal(f.field('-identity-description').props.value, '自定义相处说明', 'a successful save shows the persisted value as the new base');
   assert.equal(f.state.config.effective.voiceTranscription, true, 'unrelated external saved setting survives');
 });
 
@@ -954,7 +962,7 @@ test('memory editor reads provenance and scope, preserves CAS drafts, and explic
   await f.click('来源与修改记录'); await f.change('-detail', '现在更喜欢喝温水。');
   open().props.onClick(); await f.flush(); assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。', 'reopening the same row cannot discard its draft');
   await f.click('账号与身份'); await f.change('-account-name', '尚未保存');
-  assert(f.button('保存并应用').props.disabled, 'memory draft gates runtime reload');
+  assert.equal(f.button('保存并应用').props.disabled, false, 'a memory draft defers rather than disables the single save');
   await f.change('-account-name', '主要使用者'); await f.click('依赖与更新'); assert(f.button('重启 QQ 服务').props.disabled);
   await f.click('记忆'); f.setFailMemory(true); await f.click('保存记忆纠正');
   assert.equal(f.field('-detail').props.value, '现在更喜欢喝温水。'); f.setFailMemory(false);
@@ -1149,7 +1157,7 @@ test('refresh preserves a manually selected provider and its URL draft instead o
   connectionProvider(f).props.onChange({ target: { value: 'api-service' } }); await f.flush();
   await f.change('-baseURL', 'https://draft.example.invalid/v1');
   model.providers[0].revision = 2; model.providers[0].baseURL = 'https://updated.example.invalid/v1';
-  await f.click('刷新');
+  await f.click('刷新目录');
   assert.equal(connectionProvider(f).props.value, 'api-service', 'refresh must respect the explicit connection-editor selection');
   assert.equal(f.field('-baseURL').props.value, 'https://draft.example.invalid/v1');
   assert.equal(f.field('-default-provider').props.value, 'account-service', 'editing another connection must not change the chat model');

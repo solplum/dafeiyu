@@ -147,12 +147,12 @@ test('manual defaults and automatic per-message choice save one revisioned patch
 for (const refresh of ['automatic', 'manual']) test(refresh + ' status refresh reconciles only a saved voice notice after apply without claiming tested delivery', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); await f.flush();
   await f.change('-default-voice', 'serena'); await f.click('保存声音设置');
-  await f.refresh(); assert.ok(f.text().includes('点击下方“保存并生效”后接入当前运行'));
+  await f.refresh(); assert.ok(f.text().includes('点击下方“生效”后接入当前运行'));
   assert.equal(f.text().includes('声音设置已生效。'), false, 'a pending snapshot still requires explicit apply');
   f.voice.pendingReload = false; f.voice.defaultVoiceId = 'serena'; f.voice.runtime.enabled = true;
   if (refresh === 'automatic') await f.refresh(); else await f.click('检查');
   assert.ok(f.text().includes('声音设置已生效。'));
-  assert.equal(f.text().includes('点击下方“保存并生效”后接入当前运行'), false);
+  assert.equal(f.text().includes('点击下方“生效”后接入当前运行'), false);
   assert.equal(f.text().includes('尚未生效'), false);
   assert.ok(f.text().includes('待测试')); assert.equal(f.text().includes('已确认可发送'), false);
   assert.equal(f.field('-default-voice').props.value, 'serena');

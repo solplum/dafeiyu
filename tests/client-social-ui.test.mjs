@@ -76,11 +76,10 @@ function fixture() {
   };
 }
 
-test('video platforms is a settings subtab and preserves consumer/life navigation mappings', () => {
-  assert.match(shipped, /\['social', '视频平台'\]/);
-  assert.match(shipped, /const settingTabs = \[[^\]]*'social'/);
+test('video platforms lives in the advanced group and keeps its own page key', () => {
+  assert.match(shipped, /social: '视频平台'/);
+  assert.match(shipped, /'model', 'voice', 'social', 'phone', 'dependencies', 'capabilities'/);
   assert.match(shipped, /key === 'social' \? h\(VideoPlatformsPanel, \{ active: tab === 'social' \}\)/);
-  assert.match(shipped, /const everydayTabs = \['overview', 'capabilities', 'background', 'memes', 'memory', 'life'\]/);
 });
 
 test('opening reads only snapshots and shows two separate three-state cards with explanations collapsed', async (t) => {

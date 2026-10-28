@@ -348,6 +348,15 @@ export class PanelLibrary {
       fs.renameSync(temporary, source.file);
       temporary = undefined;
       committed = true;
+      try {
+        const prefix = path.basename(source.file) + '.bak-';
+        const stale = fs.readdirSync(directory)
+          .filter((name) => name.startsWith(prefix))
+          .map((name) => ({ name, mtime: fs.statSync(path.join(directory, name)).mtimeMs }))
+          .sort((a, b) => b.mtime - a.mtime)
+          .slice(5);
+        for (const entry of stale) fs.unlinkSync(path.join(directory, entry.name));
+      } catch {}
       source.role.cache = null;
       source.role.cacheAt = 0;
       const dirFd = fs.openSync(directory, 'r');

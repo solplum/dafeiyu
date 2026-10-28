@@ -116,7 +116,7 @@ function fixture() {
     : [node, ...node.props.children.flatMap((child) => nodes(child))];
   const text = (node = tree) => typeof node === 'string' ? node : node?.props?.hidden ? '' : node?.props?.children.map((child) => text(child)).join('') || '';
   const aliases = { '当前状态': '首页', '能力': '功能', '后台任务': '任务', '查看能力': '查看功能',
-    '刷新能力': '刷新功能', '检测组件': '检查连接', '刷新后台任务': '刷新任务', '保存': '仅保存', '保存并应用': '保存并生效',
+    '刷新能力': '刷新功能', '检测组件': '检查连接', '刷新后台任务': '刷新任务', '仅保存': '保存', '保存并生效': '保存', '保存并应用': '保存', '刷新': '刷新状态',
     'QQ 连接': 'QQ账号', '依赖与更新': '安装与更新' };
   const button = (label) => nodes().find((node) => node.type === 'button' && text(node) === (aliases[label] || label));
   const summary = (title, scope) => nodes(scope).find((node) => node.type === 'summary' && text(node) === title);
@@ -140,7 +140,8 @@ function fixture() {
   const acknowledge = (id) => nodes().find((node) => node.type === 'button' && node.props['aria-label'] === '解除工作区保护 ' + id);
   const verification = (id) => nodes().find((node) => node.type === 'input' && node.props['aria-label'] === '确认旧执行器已停止 ' + id);
   async function click(label) {
-    if (!button(label) && ['QQ 连接', '依赖与更新', 'QQ账号', '安装与更新'].includes(label)) await click('设置');
+    const groupOf = { 'QQ 连接': '聊天', 'QQ账号': '聊天', '任务': '聊天', '依赖与更新': '高级', '安装与更新': '高级', '声音': '高级', '手机': '高级', '模型服务': '高级', '视频平台': '高级', '功能': '高级', '性格': '她', '记忆': '她', '表情包': '她', '生活与成长': '她' };
+    const resolved = aliases[label] || label; if (!button(label) && groupOf[resolved]) await click(groupOf[resolved]);
     const node = button(label); assert(node, 'Missing button: ' + label); assert.equal(Boolean(node.props.disabled), false, 'Disabled button: ' + label);
     if (node.props.onClick) node.props.onClick();
     else nodes().find((node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
@@ -174,7 +175,7 @@ test('executor names and business work stay visible while finished connection ch
   for (const name of ['DSH 原生子代理', 'Codex', 'Z Code', 'MiniMax Code']) assert.ok(f.text().includes(name + ' · 连接检查'));
   assert.ok(f.text().includes('检查失败'));
   assert.equal(f.text().includes('ORIGINAL_PROBE_TITLE_'), false, 'original text remains in advanced details');
-  assert.deepEqual(f.calls.map(call => call.route), ['state']);
+  assert.deepEqual(f.calls.map(call => call.route), ['state', 'napcat/status']); // 组导航先落 QQ账号页，NapCat 只读状态轮询
 });
 
 test('unconfirmed connection checks retain visible safety controls instead of being hidden in history', async t => {
@@ -219,7 +220,7 @@ test('background tab distinguishes task outcome, QQ delivery and executor detect
   assert.ok(f.text().includes('已完成只读检查')); assert.ok(f.text().includes('子任务执行未完成'));
   assert.equal(f.cancel('job-1').props.disabled, true); assert.equal(f.cancel('job-2').props.disabled, true);
   assert.equal(f.field('-backgroundTasksEnabled').props.checked, true); assert.equal(f.field('-externalTaskRouting').props.checked, true);
-  assert.deepEqual(f.calls.map((call) => call.route), ['state']);
+  assert.deepEqual(f.calls.map((call) => call.route), ['state', 'napcat/status']);
   assert.equal(f.nodes().some((node) => node.type === 'button' && /启动任务|安装|运行任务/.test(f.text(node))), false);
   assert.equal([...f.timers.values()].some((timer) => timer.ms === 5000), false, 'background tab does not poll or start a job');
 });
@@ -262,19 +263,23 @@ test('invalid task scope and configuration application disable cancellation even
   f.cancel('job-1').props.onClick(); await f.flush(); assert.equal(f.calls.some((call) => call.route === 'tasks/cancel'), false);
 });
 
-test('background settings save atomically through config CAS, preserve drafts on failure and cannot apply while tasks run', async (t) => {
+test('background settings save atomically through config CAS, preserve drafts on failure and queue the apply while tasks run', async (t) => {
   const f = fixture(); t.after(() => f.dispose()); f.state.runtime.busy = true;
   await f.flush(); await f.click('后台任务'); await f.toggle('-backgroundTasksEnabled', false); await f.toggle('-externalTaskRouting', false);
   await f.click('当前状态'); await f.click('后台任务'); await f.expandSettings();
-  assert.equal(f.field('-backgroundTasksEnabled').props.checked, false); assert.equal(f.button('保存并应用').props.disabled, true);
-  f.setFailSave(true); await f.click('保存'); assert.equal(f.field('-externalTaskRouting').props.checked, false);
-  f.setFailSave(false); await f.click('保存');
+  assert.equal(f.field('-backgroundTasksEnabled').props.checked, false);
+  assert.equal(f.button('保存并应用').props.disabled, false, 'a busy runtime no longer disables the single save; it queues the apply');
+  await f.click('保存并应用');
+  assert.equal(f.calls.some((call) => call.route === 'config'), false, 'nothing is written while she is busy; the save is queued');
+  assert(f.text().includes('自动保存并生效'), 'the queued apply intent is visible');
+  f.setFailSave(true);
+  f.state.runtime.busy = false; await f.click('刷新');
+  assert.equal(f.field('-externalTaskRouting').props.checked, false, 'a queued save that still fails keeps the drafts');
+  f.setFailSave(false); await f.click('保存并应用');
   const saved = f.calls.filter((call) => call.route === 'config').at(-1).payload;
   assert.deepEqual(saved, { revision: 'fixture-1', patch: { backgroundTasksEnabled: false, externalTaskRouting: false }, clearSecrets: [] });
-  assert.equal(f.state.pendingReload, true); assert.equal(f.state.config.running.backgroundTasksEnabled, undefined);
-  assert.equal(f.calls.some((call) => call.route === 'apply'), false);
-  f.state.runtime.busy = false; await f.click('刷新后台任务'); await f.click('保存并应用');
-  assert.equal(f.state.config.running.backgroundTasksEnabled, false); assert.equal(f.state.config.running.externalTaskRouting, false);
+  assert.equal(f.state.config.running.backgroundTasksEnabled, false, 'the single save applies once the runtime is idle');
+  assert.equal(f.state.config.running.externalTaskRouting, false);
 });
 
 test('profile overrides stay read-only and reflect effective background settings', async (t) => {

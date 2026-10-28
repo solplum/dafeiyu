@@ -111,7 +111,7 @@ test('catalog adoption preserves a model selection draft and detects another win
   await f.change('-default-model', 'api-two');
   await f.click('检查模型列表');
   assert.equal(f.field('-default-model').props.value, 'api-two'); assert.equal(f.pageDirty, true);
-  f.changeExternalSelection({ provider: 'api', model: 'api-one' }); await f.click('刷新');
+  f.changeExternalSelection({ provider: 'api', model: 'api-one' }); await f.click('刷新目录');
   assert.equal(f.field('-default-model').props.value, 'api-two'); assert.equal(f.button('使用此模型').props.disabled, true);
   assert(f.text().includes('默认模型已被其他操作改变')); assert.equal(f.mutations.length, 0);
 });

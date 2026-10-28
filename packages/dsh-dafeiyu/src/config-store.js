@@ -23,6 +23,8 @@ const FIELDS = new Set([...Object.keys(DEFAULTS), ...SECRETS, 'qqAccounts']);
 const BOOLEANS = new Set(['autoStartOneBot', 'phoneEnabled', 'autoConnectPhone', 'voiceTranscription',
   'allowMemoryWrites', 'allowMemeSync', 'catchUpUnread', 'voiceReplyEnabled', 'backgroundTasksEnabled', 'externalTaskRouting', 'ttsAutoVoice', 'biliEnabled', 'douyinEnabled']);
 const MAX_BYTES = 1024 * 1024;
+// Single-owner panel: roll backups instead of one file per save forever.
+const KEEP_BACKUPS = 5;
 const own = (object, key) => Object.hasOwn(object, key);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const revisionOf = (bytes) => createHash('sha256').update(bytes === null ? 'missing\0' : 'present\0').update(bytes || '').digest('hex');
@@ -221,6 +223,7 @@ export class PrivateConfigStore {
       this.#fs.renameSync(temporary, this.#configFile);
       temporary = undefined;
       committed = true;
+      this.#pruneBackups(directory);
       const dirFd = this.#fs.openSync(directory, 'r');
       try { this.#fs.fsyncSync(dirFd); } finally { this.#fs.closeSync(dirFd); }
       return { ...this.#view({ data: next, bytes: output, revision: revisionOf(output) }, this.#overrides), requiresReload: true,
@@ -242,6 +245,19 @@ export class PrivateConfigStore {
     const fd = this.#fs.openSync(file, 'wx', 0o600);
     try { this.#fs.fchmodSync(fd, 0o600); this.#fs.writeFileSync(fd, bytes); this.#fs.fsyncSync(fd); }
     finally { this.#fs.closeSync(fd); }
+  }
+
+  /** Keep only the newest KEEP_BACKUPS timestamped backups; pruning must never fail a committed save. */
+  #pruneBackups(directory) {
+    try {
+      const prefix = path.basename(this.#configFile) + '.bak-';
+      const stale = this.#fs.readdirSync(directory)
+        .filter((name) => name.startsWith(prefix))
+        .map((name) => ({ name, mtime: this.#fs.statSync(path.join(directory, name)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime)
+        .slice(KEEP_BACKUPS);
+      for (const entry of stale) this.#fs.unlinkSync(path.join(directory, entry.name));
+    } catch {}
   }
 }
 

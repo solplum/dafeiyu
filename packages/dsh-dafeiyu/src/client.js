@@ -22,9 +22,19 @@ window.__ModuleLoader__.load({
       ['phone_key', '返回按键', '仅允许下方勾选的返回键'],
       ['phone_listen', '短时录音', '单次最多 3 秒；是否听懂以转写回执为准'],
     ];
-    const tabs = [['overview', '首页'], ['capabilities', '功能'], ['background', '任务'], ['model', '模型服务'], ['qq', 'QQ账号'], ['accounts', '聊天对象'], ['voice', '声音'], ['social', '视频平台'], ['dependencies', '安装与更新'], ['memes', '表情包'], ['memory', '记忆'], ['life', '生活与成长'], ['persona', '性格'], ['phone', '手机']];
-    const everydayTabs = ['overview', 'capabilities', 'background', 'memes', 'memory', 'life'];
-    const settingTabs = ['qq', 'accounts', 'model', 'voice', 'social', 'persona', 'phone', 'dependencies'];
+    // 四页信息架构：首页(状态) / 她(人设) / 聊天(对象与任务) / 高级(服务与运维)。
+    // 原子页面 key 全部保留，只是收进分组，页面组件与草稿语义不变。
+    const subTabs = { persona: '性格', memory: '记忆', memes: '表情包', life: '生活与成长',
+      qq: 'QQ账号', accounts: '聊天对象', background: '任务',
+      model: '模型服务', voice: '声音', social: '视频平台', phone: '手机', dependencies: '安装与更新', capabilities: '功能' };
+    const tabGroups = [
+      { id: 'overview', label: '首页', children: [] },
+      { id: 'her', label: '她', children: ['persona', 'memory', 'memes', 'life'] },
+      { id: 'chat', label: '聊天', children: ['qq', 'accounts', 'background'] },
+      { id: 'advanced', label: '高级', children: ['model', 'voice', 'social', 'phone', 'dependencies', 'capabilities'] },
+    ];
+    const groupOfKey = new Map(tabGroups.flatMap((group) => group.children.map((key) => [key, group])));
+    const everyPageKey = ['overview', ...groupOfKey.keys()];
     const relationPresets = [
       { id: 'existing', name: '沿用当前人设', userRole: '', companionRole: '', userTitle: '', companionTitle: '' },
       { id: 'friends', name: '朋友', userRole: '朋友', companionRole: '朋友', userTitle: '朋友', companionTitle: '大肥鱼' },
@@ -536,7 +546,7 @@ window.__ModuleLoader__.load({
       };
       return h('section', { className: 'dfy-section' },
         h(SectionHeading, { title: '模型服务', help: '选择聊天使用的模型，并填写服务商提供的连接信息。更改默认模型用于新会话，已有 QQ 对话可在高级设置中重新连接。' },
-          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy), onClick: load }, busy === 'read' ? '刷新中…' : '刷新')),
+          h('button', { type: 'button', className: 'dfy-button', disabled: Boolean(busy), onClick: load }, busy === 'read' ? '刷新中…' : '刷新目录')),
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert' },
           failure.code === 'CONFLICT' ? '设置已被其他操作更新。模型草稿已保留，请刷新后核对。' : errorText(failure, patch.apiKey)) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status' }, notice) : null,
@@ -861,7 +871,7 @@ window.__ModuleLoader__.load({
     }
     function VoiceOutputPanel({ active, refreshKey, onDirtyChange, onSaved }) {
       const api = usePanelApi();
-      const savedNotice = '语音发送配置已保存，点击下方“保存并生效”后接入当前运行。';
+      const savedNotice = '语音发送配置已保存，点击下方“生效”后接入当前运行。';
       const [voice, setVoice] = useState(null);
       const [base, setBase] = useState({});
       const [draft, setDraft] = useState({});
@@ -979,7 +989,7 @@ window.__ModuleLoader__.load({
         voice ? h(React.Fragment, null,
           h('div', { className: 'dfy-readonly' }, h('span', null, '当前状态'), h('strong', null,
             !voice.runtime?.enabled ? '未开启' : !voice.runtime?.configured ? '需要配置' : readiness[voice.runtime?.readiness] || '待检查')),
-          voice.pendingReload ? h('p', { className: 'dfy-notice dfy-warning', role: 'status' }, '声音设置已保存，尚未生效。请点击“保存并生效”。') : null,
+          voice.pendingReload ? h('p', { className: 'dfy-notice dfy-warning', role: 'status' }, '声音设置已保存，尚未生效。请点击下方“生效”。') : null,
           voice.runtime?.lastResult && voice.runtime?.readiness === 'failed' ? h('p', { className: 'dfy-field-error' }, '上次未成功：', typeof voice.runtime.lastResult === 'string' ? voice.runtime.lastResult
             : [voice.runtime.lastResult.ok === true ? '成功' : voice.runtime.lastResult.ok === false ? '失败' : '', voice.runtime.lastResult.note || voice.runtime.lastResult.message,
               voice.runtime.lastResult.at ? displayTime(voice.runtime.lastResult.at) : ''].filter(Boolean).join(' · ')) : null,
@@ -989,7 +999,7 @@ window.__ModuleLoader__.load({
               disabled: Boolean(busy) || managed('voiceReplyEnabled'), onChange: (event) => change('voiceReplyEnabled', event.target.checked) })),
           h('div', { className: 'dfy-field', style: { marginTop: 16 } },
             h('div', { className: 'dfy-titleline' }, h('label', { className: 'dfy-label', htmlFor: fieldId.current + '-default-voice' }, '默认音色'),
-              h(HelpTip, { label: '默认音色' }, '手动选择大肥鱼平时使用的声音。试听不会保存选择，保存并生效后才更新默认音色。')),
+              h(HelpTip, { label: '默认音色' }, '手动选择大肥鱼平时使用的声音。试听不会保存选择，保存后才更新默认音色。')),
             h('select', { id: fieldId.current + '-default-voice', value: selectedVoiceId,
               disabled: Boolean(busy) || managed('ttsVoice') || !voices.length, onChange: (event) => change('ttsVoice', event.target.value) },
               !selectedVoice ? h('option', { value: selectedVoiceId }, voices.length ? '当前自定义声音' : '暂无可选音色') : null,
@@ -1017,7 +1027,7 @@ window.__ModuleLoader__.load({
             } }, '放弃语音草稿') : null,
             h('button', { type: 'button', className: 'dfy-button dfy-primary', disabled: Boolean(busy) || !dirty || conflict, onClick: save }, busy === 'save' ? '保存中…' : '保存声音设置'))),
           h('p', { className: 'dfy-hint' }, localService ? '试听只在本页播放，不会发到 QQ。' : '试听会调用在线声音服务，可能产生费用；不会发到 QQ。'),
-          connectionDirty ? h('p', { className: 'dfy-hint' }, '声音服务设置有修改，请先保存并生效后试听。') : null,
+          connectionDirty ? h('p', { className: 'dfy-hint' }, '声音服务设置有修改，请先保存后试听。') : null,
           preview ? h('div', { className: 'dfy-resource', 'aria-label': '音色试听' }, h('p', { className: 'dfy-label' }, preview.name, ' · 试听'),
             h('audio', { ref: audioPlayer, controls: true, preload: 'none', src: preview.src, 'aria-label': preview.name + '试听音频', style: { width: '100%', marginTop: 8 } })) : null,
           h(Advanced, { title: '高级设置' },
@@ -1507,7 +1517,7 @@ window.__ModuleLoader__.load({
           return url && choice.enabled ? h('a', { key: choice.id, className: 'dfy-button', href: url, target: '_blank', rel: 'noopener noreferrer', style: { textDecoration: 'none' } }, label)
             : h('button', { key: choice.id, type: 'button', className: 'dfy-button', disabled: choice.enabled !== true || Boolean(busy) || snapshot.busy
               || mutation && (maintenanceBlocked || !snapshot.checkedAt),
-              title: mutation && maintenanceBlocked ? '请先点击“保存并生效”，并等待当前任务完成。'
+              title: mutation && maintenanceBlocked ? '请先点击“保存”，并等待当前任务完成。'
                 : mutation && !snapshot.checkedAt ? '请先检查安装状态。' : choice.reason || '',
               onClick: () => action(item, choice) }, busy === item.id + ':' + choice.id ? '处理中…' : label);
         }));
@@ -1515,7 +1525,7 @@ window.__ModuleLoader__.load({
       function resourceNotes(item, choices = item.actions || []) {
         const mutation = choices.some((choice) => ['install', 'update', 'start', 'restart'].includes(choice.id) && !choice.url);
         return h(React.Fragment, null,
-          mutation && maintenanceBlocked ? h('p', { className: 'dfy-action-note' }, '请先点击“保存并生效”，并等待当前任务完成。') : null,
+          mutation && maintenanceBlocked ? h('p', { className: 'dfy-action-note' }, '请先点击“保存”，并等待当前任务完成。') : null,
           mutation && !snapshot.checkedAt ? h('p', { className: 'dfy-action-note' }, '请先检查安装状态。') : null,
           choices.filter((choice) => choice.reason && (choice.enabled !== true || ['restart', 'update'].includes(choice.id) && ['napcat', 'linux-qq'].includes(item.id))).map((choice) =>
           h('p', { className: 'dfy-action-note', key: choice.id }, choice.label, '：', choice.reason)));
@@ -1691,7 +1701,7 @@ window.__ModuleLoader__.load({
         failure ? h('div', { className: 'dfy-notice dfy-error', role: 'alert' }, failure) : null,
         notice ? h('div', { className: 'dfy-notice', role: 'status' }, notice) : null,
         busy ? h('p', { className: 'dfy-hint', role: 'status' }, '测试或清理正在进行，请稍候；完成后才能保存设置。') : null,
-        probeBlocked ? h('p', { className: 'dfy-hint' }, '请先保存并生效相关修改，等待当前任务结束后再测试。') : null,
+        probeBlocked ? h('p', { className: 'dfy-hint' }, '请先保存相关修改，等待当前任务结束后再测试。') : null,
         h('section', { ref: testArea, className: 'dfy-resource dfy-test-area', hidden: !showTestArea, 'aria-label': 'DSH 界面控制测试区' },
           h(SectionHeading, { title: '电脑测试区', help: '测试只在这里临时输入、点击并读回结果，不读取用户聊天、不发送 QQ、不操作手机。' },
             h('button', { type: 'button', className: 'dfy-link-button', disabled: busy, onClick: () => setShowTestArea(false) }, '收起测试区')),
@@ -1708,7 +1718,7 @@ window.__ModuleLoader__.load({
           const item = detected.find((candidate) => candidate.id === id) || { id, title, description, examples: [example], present: null, available: null, state: 'unknown', section };
           const expired = item.expiresAt && Number.isFinite(new Date(item.expiresAt).getTime()) && new Date(item.expiresAt).getTime() <= Date.now();
           const state = item.state === 'verified' && expired ? 'stale' : item.state;
-          const target = tabs.some(([key]) => key === item.section && key !== 'capabilities') ? item.section : section;
+          const target = groupOfKey.has(item.section) && item.section !== 'capabilities' ? item.section : section;
           const tone = state === 'verified' ? 'good' : ['failed', 'stale', 'unavailable'].includes(state) ? 'warn' : 'neutral';
           const examples = Array.isArray(item.examples) && item.examples.length ? item.examples.filter((entry) => typeof entry === 'string').slice(0, 3) : [example];
           const attention = state === 'failed' ? item.verification?.code === 'ACCESSIBILITY_REQUIRED'
@@ -2002,7 +2012,7 @@ window.__ModuleLoader__.load({
                 || uncertain && !acknowledged[keyFor(item)], 'aria-label': '新会话继续 ' + label,
                 onClick: () => control(item, 'fresh') }, busy === item.qq + ':' + item.identityId + ':fresh' ? '处理旧会话中…' : '用新会话接收后续消息'),
               h('p', { className: 'dfy-hint' }, '压缩后可尝试恢复原聊天；也可结束旧上下文，从下一条新消息开始。私人记忆仍按当前账号和身份检索，原请求与排队消息都不会重跑。')) : null,
-            recoveryBlocked && item.canRecover && !needsInput ? h('p', { className: 'dfy-hint' }, '请先保存并生效或放弃修改，再恢复聊天。仍可停止当前处理。') : null,
+            recoveryBlocked && item.canRecover && !needsInput ? h('p', { className: 'dfy-hint' }, '请先保存修改，再恢复聊天。仍可停止当前处理。') : null,
             h(Advanced, { title: '高级详情' },
               h('p', { className: 'dfy-hint' }, 'QQ ', item.qq, ' · 身份 ', item.identityId),
               h('p', { className: 'dfy-hint' }, '最近收到：', displayTime(item.lastEventAt), ' · 最近回复完成：', displayTime(item.lastReplyAt)),
@@ -2098,7 +2108,7 @@ window.__ModuleLoader__.load({
                   h(HelpTip, { label: '接收消息' }, '关闭后忽略这个账号的新消息，身份设置仍会保留。')),
                 h('input', { id: formId.current + '-enabled', type: 'checkbox', checked: account.enabled === true, disabled,
                   onChange: (event) => editAccount({ enabled: event.target.checked }) })),
-              account.enabled !== true ? h('p', { className: 'dfy-hint' }, '保存并生效后，将不再回复这个账号的新消息；身份设置仍会保留。') : null,
+              account.enabled !== true ? h('p', { className: 'dfy-hint' }, '保存后，将不再回复这个账号的新消息；身份设置仍会保留。') : null,
               h('div', { className: 'dfy-inline-actions', style: { marginTop: 10 } },
                 !primary ? h('button', { type: 'button', className: 'dfy-button', disabled: disabled || ownerDisabled || !/^[1-9]\d{0,19}$/.test(account.qq || ''),
                   onClick: () => onOwnerChange(account.qq, true) }, '设为主要账号') : null,
@@ -2134,7 +2144,34 @@ window.__ModuleLoader__.load({
                     account.identities.length > 1 && identity.id === account.activeIdentityId
                       ? h('p', { className: 'dfy-hint' }, '删除当前聊天身份并保存生效后，将改用其他身份。') : null)) : null))
               : h('div', { className: 'dfy-empty' }, '还没有聊天对象，请先添加账号。')),
-          engine !== 'legacy' ? h('p', { className: 'dfy-hint' }, '保存并生效时会重新连接 QQ。') : null));
+          engine !== 'legacy' ? h('p', { className: 'dfy-hint' }, '保存时会重新连接 QQ。') : null));
+    }
+    // 首页 QQ 卡片的显式二维码入口：点一下就把码拿到首页，不用先进 QQ账号页。
+    // 保持项目边界：打开页面只读，登录凭据只在明确点击后才获取。
+    function HomeQrInline() {
+      const api = usePanelApi();
+      const [open, setOpen] = useState(false);
+      const [busy, setBusy] = useState(false);
+      const [qr, setQr] = useState(null);
+      const [failure, setFailure] = useState('');
+      useEffect(() => { if (!open) { setQr(null); setFailure(''); } }, [open]);
+      async function show() {
+        if (busy) return;
+        setBusy(true); setFailure('');
+        try {
+          const result = await api.call('napcat/qrcode', 'POST', { refresh: false });
+          setQr(result.qrcode || null);
+        } catch (error) { setFailure('暂时取不到二维码，可到 QQ账号页查看登录状态。'); }
+        finally { setBusy(false); }
+      }
+      return h('div', { style: { marginTop: 12 } },
+        !open ? h('button', { type: 'button', className: 'dfy-button', onClick: () => { setOpen(true); show(); } }, '显示登录二维码') : h(React.Fragment, null,
+          busy && !qr ? h('p', { className: 'dfy-hint' }, '正在获取登录二维码…') : null,
+          failure ? h('p', { className: 'dfy-hint' }, failure) : null,
+          qr?.available && qr.image?.mime === 'image/png' ? h(React.Fragment, null,
+            h('img', { src: 'data:image/png;base64,' + qr.image.base64, alt: '接收小号的 QQ 登录二维码',
+              style: { width: 180, height: 180, display: 'block', borderRadius: 8, border: '1px solid rgba(127,127,127,.35)', marginTop: 8 } }),
+            h('p', { className: 'dfy-hint', style: { marginTop: 6 } }, qr.note || '用接收小号的手机 QQ 扫码登录；电脑上的同号 QQ 请先退出。')) : null));
     }
     function NapCatPanel({ active, expectedSelfId, refreshKey, onNavigate }) {
       const api = usePanelApi();
@@ -3534,6 +3571,7 @@ window.__ModuleLoader__.load({
       const [capabilitiesBusy, setCapabilitiesBusy] = useState(false);
       const [resourceRefreshKey, setResourceRefreshKey] = useState(0);
       const [operation, setOperation] = useState('');
+      const [queuedApply, setQueuedApply] = useState(false);
       const [error, setError] = useState(null);
       const [notice, setNotice] = useState('');
       const [updatedAt, setUpdatedAt] = useState('');
@@ -3727,11 +3765,13 @@ window.__ModuleLoader__.load({
         panelRoot.current?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'auto' });
       }, [tab]);
       function selectTab(key) {
-        if (key !== 'settings' && !tabs.some(([candidate]) => candidate === key)) return;
-        if (tab === key) panelRoot.current?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'auto' });
+        const group = tabGroups.find((candidate) => candidate.id === key);
+        const target = group && group.children.length ? group.children[0] : key;
+        if (target !== 'overview' && !groupOfKey.has(target)) return;
+        if (tab === target) panelRoot.current?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'auto' });
         else scrollAfterNavigation.current = true;
-        setVisitedTabs((previous) => previous.includes(key) ? previous : [...previous, key]);
-        setTab(key);
+        setVisitedTabs((previous) => previous.includes(target) ? previous : [...previous, target]);
+        setTab(target);
       }
       function value(key) {
         if (overridden.includes(key)) return own(config.effective, key) ? config.effective[key] : defaults[key];
@@ -3750,50 +3790,57 @@ window.__ModuleLoader__.load({
         }
         changeFields({ ownerQq: nextQq, qqAccounts: nextAccounts });
       }
-      function adoptLatest() {
-        const nextBase = baseValues(config);
-        const nextDraft = Object.fromEntries(Object.entries(draft).filter(([key, candidate]) =>
-          !overridden.includes(key) && !equal(candidate, nextBase[key])));
-        setBase(nextBase); setRevision(config.revision); setDraft(nextDraft);
-        if (overridden.includes('onebotAccessToken')) { setToken(''); setClearToken(false); }
-        setError(null);
-        setNotice('已采用最新版本并保留可编辑草稿。请核对后保存；同一字段将使用你的草稿值。');
-      }
-      function discardChanges() {
-        const current = latest.current, savedConfig = current.snapshot?.config;
-        if (lock.current || current.capabilitiesBusy || !savedConfig || typeof savedConfig.revision !== 'string') return;
-        const savedBase = baseValues(savedConfig);
-        latest.current = { ...current, base: savedBase, revision: savedConfig.revision, draft: {}, token: '', clearToken: false, dirty: false };
-        setBase(savedBase); setRevision(savedConfig.revision); setDraft({}); setToken(''); setClearToken(false);
-        setError(null); setNotice('已恢复最近读取的设置，其他页面的独立草稿已保留。');
-      }
-      async function save(applyAfter) {
+      async function save() {
         if (lock.current || latest.current.capabilitiesBusy || !snapshot || !revision) return;
         if (accountErrors.length) return;
-        if (applyAfter && (!snapshot.canApply || runtime.busy || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty)) return;
+        if (latest.current.snapshot?.runtime?.busy === true) {
+          setQueuedApply(true);
+          setNotice('她正在处理消息。处理完成后会自动保存并生效。');
+          return;
+        }
         lock.current = true;
-        setOperation(applyAfter ? 'apply' : 'save');
+        setOperation('apply');
         setError(null); setNotice('');
         let saved = false;
         try {
           const current = latest.current;
           const overriddenDraft = Object.keys(current.draft).filter((key) => overridden.includes(key));
-          if (externalChange || overriddenDraft.length) {
-            const conflict = new Error('配置已被其他操作修改。请刷新并采用新版本，草稿会保留供你核对。');
+          if (overriddenDraft.length) {
+            const conflict = new Error('有由 DSH 管理字段的本地草稿，这些字段不会随本次保存写入；请在 DSH 设置中修改它们。');
             conflict.code = 'CONFLICT'; throw conflict;
           }
+          // 冲突自愈：配置在外部被修改时自动采用最新版本并保留本地草稿，不打断保存。
+          const resync = async () => {
+            const state = await request('state');
+            if (!state.config || typeof state.config.revision !== 'string') throw new Error('配置响应不完整，请刷新重试');
+            const nextBase = baseValues(state.config);
+            const nextDraft = Object.fromEntries(Object.entries(current.draft)
+              .filter(([key, candidate]) => !overridden.includes(key) && !equal(candidate, nextBase[key])));
+            current.base = nextBase; current.revision = state.config.revision;
+            current.draft = nextDraft; current.dirty = Object.keys(nextDraft).length > 0 || current.token !== '' || current.clearToken;
+            if (live.current) { setBase(nextBase); setRevision(state.config.revision); setDraft(nextDraft); }
+            return state;
+          };
+          if (externalChange) await resync();
           if (current.dirty) {
-            const patch = { ...current.draft };
-            if (current.token !== '' && !current.clearToken) patch.onebotAccessToken = current.token;
-            const result = await request('config', 'POST', {
-              patch, revision: current.revision, clearSecrets: current.clearToken ? ['onebotAccessToken'] : [],
-            });
+            const payload = () => {
+              const patch = { ...current.draft };
+              if (current.token !== '' && !current.clearToken) patch.onebotAccessToken = current.token;
+              return { patch, revision: current.revision, clearSecrets: current.clearToken ? ['onebotAccessToken'] : [] };
+            };
+            let result;
+            try { result = await request('config', 'POST', payload()); }
+            catch (failure) {
+              if (failure.code !== 'CONFLICT' || !live.current) throw failure;
+              await resync();
+              result = await request('config', 'POST', payload());
+            }
             acceptState(result, true);
             saved = true;
-            if (live.current) setNotice(result.pendingReload || result.config?.requiresReload
-              ? '配置已保存，等待应用。' : '配置已保存，当前无需重载。');
           }
-          if (applyAfter && live.current) {
+          if (personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty) {
+            if (live.current) setNotice('配置已保存。其他页面还有独立草稿，先保存它们，再点「生效」。');
+          } else if (live.current && snapshot.canApply) {
             await request('apply', 'POST', {});
             let state;
             for (let attempt = 0; attempt < 5 && live.current; attempt++) {
@@ -3806,19 +3853,28 @@ window.__ModuleLoader__.load({
               acceptState(state, true);
               if (live.current) setNotice(state.pendingReload || state.config?.requiresReload
                 ? '应用请求已完成，服务仍报告等待重载，请核对当前生效配置。'
-                : '配置已应用，运行状态已刷新。');
+                : '配置已保存并生效。');
             }
+          } else if (saved && live.current) {
+            setNotice('配置已保存。当前宿主暂不支持页内生效，重新加载 DSH 后生效。');
           }
         } catch (failure) {
           if (live.current) {
             setError(failure);
-            if (saved && applyAfter) {
+            if (saved) {
               setSnapshot((previous) => previous && ({ ...previous, pendingReload: true }));
-              setNotice('配置已保存，应用尚未确认。可刷新状态后再次应用，无需重新填写。');
+              setNotice('配置已保存，应用尚未确认。稍后点一次「生效」即可，无需重新填写。');
             }
           }
         } finally { lock.current = false; if (live.current) setOperation(''); }
       }
+      useEffect(() => {
+        if (!queuedApply || runtime.busy === true || capabilitiesBusy || lock.current) return;
+        setQueuedApply(false);
+        const stillPending = latest.current.dirty || latest.current.snapshot?.pendingReload
+          || latest.current.snapshot?.config?.requiresReload;
+        if (stillPending) save();
+      }, [queuedApply, runtime.busy, capabilitiesBusy]);
       function tag(key) {
         return overridden.includes(key) ? h('span', { className: 'dfy-badge' }, '由 DSH 管理') : null;
       }
@@ -3885,7 +3941,6 @@ window.__ModuleLoader__.load({
       const engine = config.effective?.onebotEngine || '尚未读取';
       const policyConflict = engine !== '尚未读取' && engine !== 'native' || config.effective?.catchUpUnread === true;
       const overrideDraft = Object.keys(draft).some((key) => overridden.includes(key));
-      const dirtyCount = Object.keys(draft).length + (token !== '' || clearToken ? 1 : 0);
       const editedAccounts = Array.isArray(value('qqAccounts')) ? value('qqAccounts') : [];
       const accountErrors = accountValidation(editedAccounts, value('ownerQq'), value('onebotSelfId'));
       const runningAccounts = Array.isArray(config.running?.qqAccounts) ? config.running.qqAccounts : [];
@@ -3899,41 +3954,24 @@ window.__ModuleLoader__.load({
         || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty;
       const operationReason = dirty || pendingReload || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty
         ? '请先保存并生效相关配置，避免使用未生效的设备设置。' : runtime.busy || runtime.phone?.checking ? '当前有任务执行，请完成后再操作。' : '';
+      // 教程全文已迁至仓库 docs/面板排查指南.md；面板内只保留最常用的 QQ 连接篇，其余以指引代替。
       function guide(kind) {
         const content = {
           qq: {
             title: 'QQ 连接教程与排查',
-            steps: ['到“安装与更新”检测 QQ 接入套件。Linux QQ 和 NapCat 共用一个容器，启动与更新只需操作一次。',
-              '到“QQ账号”检查小号登录，明确点击获取二维码后，用手机 QQ 扫码确认小号；容器运行不代表已经登录。',
-              '二维码反复登录失败时，可到“安装与更新”的 QQ 接入套件点击“重启 QQ 服务”，保留配置和登录资料；重启会短暂断开 QQ，完成后再检查登录状态。',
-              '到“聊天对象”配置可接待的用户和关系，再核对接收小号、本机 OneBot 地址和令牌，保存并生效。用已启用用户私聊小号测试，仍未回复时检查当前页最近收发和模型状态。'],
+            steps: ['到「高级 · 安装与更新」检测 QQ 接入套件。Linux QQ 和 NapCat 共用一个容器，启动与更新只需操作一次。',
+              '到「聊天 · QQ账号」检查小号登录，明确点击获取二维码后，用手机 QQ 扫码确认小号；容器运行不代表已经登录。',
+              '二维码反复登录失败时，可到「高级 · 安装与更新」的 QQ 接入套件点击「重启 QQ 服务」，保留配置和登录资料；重启会短暂断开 QQ，完成后再检查登录状态。',
+              '到「聊天 · 聊天对象」配置可接待的用户和关系，再核对接收小号、本机 OneBot 地址和令牌，保存生效。用已启用用户私聊小号测试，仍未回复时检查当前页最近收发和模型状态。'],
             links: [['NapCat 接入教程', 'https://napneko.github.io/guide/napcat']],
-          },
-          phone: {
-            title: '手机连接教程与排查',
-            steps: ['电脑和手机连接同一网络。在安卓 11 及以上的开发者选项开启“无线调试”，首次使用需先在系统或 ADB 中完成配对和授权。',
-              '核对手机当前 Wi-Fi 地址和连接端口，填写 IP:连接端口后保存并生效。配对端口与连接端口不同；换网络或重开无线调试后地址可能变化，旧配置不会靠反复重试自动修正。',
-              '同时使用 VPN 或虚拟网卡时，调试页可能显示虚拟地址；应核对电脑可以连接的真实 Wi-Fi 地址，不盲目照抄虚拟网卡地址。地址变化不代表配对失效。',
-              '点击“连接配置设备”，只连接该已配对地址，再查看在线状态。USB 设备填写序列号并点击“检测手机连接”；不会扫描或改用其他手机。'],
-            links: [['Android 无线调试教程', 'https://developer.android.com/tools/adb#wireless']],
-          },
-          voice: {
-            title: '语音设置教程与排查',
-            steps: ['先确认个人 QQ 已在线，再到“语音”选择识别服务和语言；本地服务缺资源时，点击下载 / 准备资源并等待就绪。',
-              '接收语音需要开启“允许 QQ 语音转写”，保存并生效；发送语音需单独开启并配置语音发送服务，可选本机声音或远程 API。',
-              '在依赖列表补齐缺失组件，再明确点击合成检测。合成成功仅说明生成音频成功；收到 QQ 语音和实际识别结果后，才能确认收发链路可用。'],
-          },
-          engine: {
-            title: '消息引擎教程与排查',
-            steps: ['QQ 消息由原生 DSH 会话处理。到“模型与 API”选择服务。使用 API 服务时填写 URL、协议和 Key；账号登录服务按宿主登录方式配置。保存后可明确点击实际 API 测试，测试可能产生少量用量。',
-              '选择宿主默认模型；已有 QQ 会话需点击“重建 QQ 会话”，才会改用新模型。新会话会采用当时的默认模型。',
-              '若未收到回复，先检查 QQ 登录与当前页最近收发，再检查模型测试结果；组件缺失或版本问题到“安装与更新”检测。'],
           },
         }[kind];
         return h('details', { className: 'dfy-detail' }, h('summary', null, content.title),
           h('div', { className: 'dfy-guide-copy' }, h('ol', null, content.steps.map((step, index) => h('li', { key: index }, step))),
             (content.links || []).map(([label, url]) => h('p', { key: url }, h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, label)))));
       }
+      const guideDoc = (topic) => h('details', { className: 'dfy-detail' }, h('summary', null, topic + ' 排查指南'),
+        h('div', { className: 'dfy-guide-copy' }, h('p', null, '完整排查步骤在仓库 ', h('code', null, 'docs/面板排查指南.md'), ' 的「' + topic + '」一节。')));
       const navButton = (label, target) => h('button', { key: target + ':' + label, type: 'button', className: 'dfy-button', onClick: () => selectTab(target) }, label);
       const overview = h(React.Fragment, null,
         h('section', { className: 'dfy-section', 'aria-label': '大肥鱼当前状态' },
@@ -3974,7 +4012,8 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dfy-card' }, h('div', { className: 'dfy-titleline' }, h('span', { className: 'dfy-card-label' }, 'QQ'),
             h(HelpTip, { label: 'QQ连接' }, '使用接收小号登录后，已启用的聊天对象就可以通过 QQ 与大肥鱼交流。')),
             h('div', { className: 'dfy-card-value dfy-' + qq[1] }, h('span', { className: 'dfy-dot', 'aria-hidden': true }), qq[0]),
-            h('div', { className: 'dfy-home-actions' }, navButton(qq[1] === 'good' ? '管理QQ' : '连接QQ', 'qq'))),
+            h('div', { className: 'dfy-home-actions' }, navButton(qq[1] === 'good' ? '管理QQ' : '连接QQ', 'qq')),
+            qq[1] !== 'good' ? h(HomeQrInline, null) : null),
           h('div', { className: 'dfy-card' }, h('div', { className: 'dfy-titleline' }, h('span', { className: 'dfy-card-label' }, '手机'),
             h(HelpTip, { label: '手机连接' }, '手机连接与允许的操作分别设置；连接成功不代表已授权所有操作。')),
             h('div', { className: 'dfy-card-value dfy-' + (runtime.phone?.state === 'online' ? 'good' : 'neutral') },
@@ -4019,7 +4058,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dfy-paths' },
             [['configFile', '私有配置'], ['memoryProjectRoot', '角色与记忆'], ['companionConfigPath', '伴侣配置'], ['memeDir', '图库']]
               .map(([key, label]) => h('div', { className: 'dfy-path', key }, h('span', null, label), h('code', null, paths[key] || '尚未读取')))),
-          guide('engine')));
+          guideDoc('消息引擎')));
       const qqPanel = h(React.Fragment, null,
         visitedTabs.includes('qq') ? h(NapCatPanel, { active: tab === 'qq', refreshKey: resourceRefreshKey,
           expectedSelfId: config.running?.onebotSelfId || config.effective?.onebotSelfId || '', onNavigate: selectTab }) : null,
@@ -4095,7 +4134,7 @@ window.__ModuleLoader__.load({
           runtime.phone?.lastTool ? readonly('最近工具结果', runtime.phone.lastTool.name + ' · ' + (runtime.phone.lastTool.ok ? '成功' : '失败')
             + ' · ' + displayTime(runtime.phone.lastTool.at)) : null,
           toggle('autoConnectPhone', '设置生效后自动连接', '仅尝试连接指定设备；未连接时保持离线状态。'),
-          guide('phone'),
+          guideDoc('手机连接'),
           toggle('allowMemoryWrites', '允许写入伴侣记忆', '开启后，授权的主要账号会话可通过工具更新共享记忆。'),
           toggle('allowMemeSync', '允许同步手机图库', '同步会读取手机图片并写入桌面图库，需要手机能力和实际连接。'),
         )));
@@ -4112,7 +4151,7 @@ window.__ModuleLoader__.load({
         h('section', { className: 'dfy-section' }, h(Advanced, { title: '高级设置' },
           runtime.voiceInput?.lastResult ? readonly('最近识别记录', (runtime.voiceInput.lastResult.ok ? '成功' : '失败')
             + ' · ' + displayTime(runtime.voiceInput.lastResult.at) + (runtime.voiceInput.lastResult.note ? ' · ' + runtime.voiceInput.lastResult.note : '')) : null,
-          guide('voice'),
+          guideDoc('语音设置'),
           h(DependencyPanel, { active: tab === 'voice', scope: 'voice', onNavigate: selectTab, maintenanceBlocked: operationBlocked })))) : null;
       const renderContent = (key) =>
         key === 'overview' ? overview : key === 'qq' ? qqPanel : key === 'phone' ? phonePanel : key === 'voice' ? voicePanel
@@ -4152,24 +4191,29 @@ window.__ModuleLoader__.load({
                     : key === 'memory' ? h(MemoryPanel, { active: tab === 'memory', onDirtyChange: setMemoryDirty, accounts: runningAccounts.length ? runningAccounts : editedAccounts,
                       writeBlocked: blocked || runtime.busy === true || pendingReload || dirty || personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty })
                       : h(PersonaPanel, { onDirtyChange: setPersonaDirty }) : null;
-      const settingsActive = tab === 'settings' || settingTabs.includes(tab);
-      const mainTabs = [...everydayTabs, 'settings'];
+      const activeGroup = tabGroups.find((group) => group.id === tab || group.children.includes(tab));
+      const groupIds = tabGroups.map((group) => group.id);
       const parentFields = { qq: ['autoStartOneBot', 'onebotSelfId', 'onebotWs', 'onebotHttp'], accounts: ['ownerQq', 'qqAccounts'],
         phone: ['phoneEnabled', 'phoneDevice', 'autoConnectPhone', 'allowedPhoneTools', 'allowedPhoneKeys', 'maxListenSeconds', 'allowMemoryWrites', 'allowMemeSync'],
         voice: ['voiceTranscription'], background: ['backgroundTasksEnabled', 'externalTaskRouting'] };
-      const pageDirty = (key) => key === 'settings' ? settingTabs.some(pageDirty)
-        : Boolean(({ model: modelDirty, voice: voiceDirty || speechDirty, persona: personaDirty,
+      const pageDirty = (key) => {
+        const group = tabGroups.find((candidate) => candidate.id === key);
+        if (group) return group.children.some(pageDirty);
+        return Boolean(({ model: modelDirty, voice: voiceDirty || speechDirty, persona: personaDirty,
           memes: galleryDirty, memory: memoryDirty, life: lifeDirty })[key]) || (parentFields[key] || []).some((field) => own(draft, field))
           || key === 'qq' && (token !== '' || clearToken);
+      };
       const hasChildDraft = personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty;
       const cannotApply = blocked || !snapshot?.canApply || runtime.busy === true || hasChildDraft || Boolean(accountErrors.length);
-      const tabButton = (key, index, keys, settings = false) => {
-        const selected = key === 'settings' ? settingsActive : tab === key;
-        const label = key === 'settings' ? '设置' : tabs.find(([candidate]) => candidate === key)?.[1];
+      const tabButton = (key, index, keys, secondary = false) => {
+        const group = tabGroups.find((candidate) => candidate.id === key);
+        const selected = group ? tab === key || group.children.includes(tab) : tab === key;
+        const label = group ? group.label : subTabs[key];
+        const dirtyMark = group ? group.children.some(pageDirty) : pageDirty(key);
         return h('button', { key, id: panelId.current + '-tab-' + key, type: 'button', role: 'tab',
-          className: settings ? 'dfy-settings-tab' : 'dfy-tab', 'aria-selected': selected,
+          className: secondary ? 'dfy-settings-tab' : 'dfy-tab', 'aria-selected': selected,
           'aria-controls': panelId.current + '-content-' + key, tabIndex: selected ? 0 : -1,
-          'data-dirty': pageDirty(key) || undefined, 'aria-description': pageDirty(key) ? '有未保存的修改' : undefined,
+          'data-dirty': dirtyMark || undefined, 'aria-description': dirtyMark ? '有未保存的修改' : undefined,
           onClick: () => selectTab(key), onKeyDown: (event) => {
             let next;
             if (event.key === 'ArrowRight') next = (index + 1) % keys.length;
@@ -4186,7 +4230,8 @@ window.__ModuleLoader__.load({
         h('header', { className: 'dfy-hero' },
           h('span', { className: 'dfy-mark', 'aria-hidden': true }, '≈'),
           h('div', null, h('h2', null, '大肥鱼')),
-          h('span', { className: 'dfy-live' }, h('span', { className: 'dfy-dot', 'aria-hidden': true }), updatedAt ? updatedAt + ' 更新' : '读取状态')),
+          h('span', { className: 'dfy-live' }, h('span', { className: 'dfy-dot', 'aria-hidden': true }), updatedAt ? updatedAt + ' 更新' : '读取状态'),
+          h('button', { className: 'dfy-button', type: 'button', style: { marginLeft: 8 }, disabled: blocked, onClick: refresh }, operation === 'refresh' ? '刷新中…' : '刷新状态')),
         runtime.error ? h('div', { className: 'dfy-notice dfy-error', role: 'alert' },
           h('strong', null, '伴侣启动失败'),
           h('div', null, typeof runtime.error === 'string' ? errorText({ message: runtime.error }, token) : '伴侣未能启动，请检查配置后重新应用。'),
@@ -4198,7 +4243,7 @@ window.__ModuleLoader__.load({
               if (current.dirty || !current.snapshot?.runtime?.error || current.snapshot.runtime.busy || current.snapshot.runtime.applying
                 || !current.snapshot.canApply || current.capabilitiesBusy || current.personaDirty || current.modelDirty || current.voiceDirty
                 || current.speechDirty || current.galleryDirty || current.memoryDirty || current.lifeDirty) return;
-              save(true);
+              save();
             } }, operation === 'apply' ? '启动中…' : '重试启动')) : null,
         h('div', { role: 'status', 'aria-live': 'polite' },
           notice ? h('div', { className: 'dfy-notice' }, notice) : null,
@@ -4208,9 +4253,8 @@ window.__ModuleLoader__.load({
           h('div', null, errorText(error, token)),
           error.validationErrors?.length ? h('ul', null, error.validationErrors.map((item, index) =>
             h('li', { key: index }, String(item.field || '配置') + '：' + String(item.message || '字段无效')))) : null) : null,
-        externalChange || overrideDraft ? h('div', { className: 'dfy-notice dfy-warning' },
-          h('p', null, '设置已在其他地方修改。草稿已保留，请采用最新设置，核对后再保存。'),
-          h('button', { type: 'button', className: 'dfy-link-button', disabled: blocked, onClick: adoptLatest }, '采用新版本，保留可编辑草稿')) : null,
+        overrideDraft ? h('div', { className: 'dfy-notice dfy-warning' },
+          h('p', null, '有由 DSH 管理字段的本地草稿，保存时不会应用这些字段；请在 DSH 设置中修改它们。')) : null,
         policyConflict ? h('div', { className: 'dfy-notice dfy-warning', role: 'alert' },
           '当前配置与原生模式要求不一致。此页不切换引擎；请在宿主配置中设为 native，并关闭历史补回。') : null,
         snapshot && config.validationErrors?.length ? h('div', { className: 'dfy-notice dfy-error', role: 'alert' },
@@ -4218,37 +4262,21 @@ window.__ModuleLoader__.load({
             h('li', { key: index }, String(item.field) + '：' + String(item.message))))) : null,
         snapshot ? h('form', { onSubmit: (event) => { event.preventDefault(); } },
           h('nav', { className: 'dfy-tabs', role: 'tablist', 'aria-label': '大肥鱼' },
-            mainTabs.map((key, index) => tabButton(key, index, mainTabs))),
-          everydayTabs.map(page),
-          h('div', { role: 'tabpanel', id: panelId.current + '-content-settings',
-            'aria-labelledby': panelId.current + '-tab-settings', hidden: !settingsActive },
-            tab !== 'settings' ? h('nav', { className: 'dfy-settings-nav', role: 'tablist', 'aria-label': '设置分类' },
-              settingTabs.map((key, index) => tabButton(key, index, settingTabs, true))) : null,
-            tab === 'settings' ? h('section', { className: 'dfy-section' },
-              h(SectionHeading, { title: '设置' }),
-              h('div', { className: 'dfy-settings-choices' }, settingTabs.map((key) => h('button', {
-                key, type: 'button', className: 'dfy-button', onClick: () => selectTab(key),
-                'data-dirty': pageDirty(key) || undefined, 'aria-description': pageDirty(key) ? '有未保存的修改' : undefined,
-              }, tabs.find(([candidate]) => candidate === key)[1])))) : null,
-            settingTabs.map(page)),
+            tabGroups.map((group, index) => tabButton(group.id, index, groupIds))),
+          activeGroup && activeGroup.children.length ? h('nav', { className: 'dfy-settings-nav', role: 'tablist', 'aria-label': activeGroup.label },
+            activeGroup.children.map((key, index) => tabButton(key, index, activeGroup.children, true))) : null,
+          everyPageKey.map(page),
           dirty || pendingReload ? h('footer', { className: 'dfy-footer' },
             h('div', { className: 'dfy-footer-note' },
-              dirty ? '有 ' + dirtyCount + ' 项未保存修改。'
-                : pendingReload ? '已保存，等待生效。' : '',
-              h('div', null, '生效时 QQ 会短暂断线。'),
-              accountErrors.length ? h('div', null, '聊天对象信息尚未完整，请补齐后保存。')
-                : !snapshot.canApply ? h('div', null, '当前宿主暂不支持页内应用，请保存后重新加载插件。')
-                : capabilitiesBusy ? h('div', null, '能力检测或验证中，完成后才能保存或应用。')
-                  : runtime.busy ? h('div', null, '会话处理中，完成后才能应用。')
-                  : personaDirty || modelDirty || voiceDirty || speechDirty || galleryDirty || memoryDirty || lifeDirty ? h('div', null, '请先保存或放弃其他页面的草稿，再让配置生效。') : null),
+              queuedApply ? '她正在处理消息，完成后自动保存并生效。'
+                : hasChildDraft ? '先保存其他页面的独立草稿，保存后一起生效。'
+                : dirty ? '保存后立即生效，QQ 会短暂重连。' : '有已保存的设置待生效。',
+              accountErrors.length ? ' 聊天对象信息尚未完整，请补齐后保存。' : ''),
             h('div', { className: 'dfy-actions' },
-              h(HelpTip, { label: '保存方式' }, '仅保存会保留设置，当前运行保持原样。点击保存并生效才会更新当前运行，QQ连接可能短暂重建；执行中的任务结束后才能操作。放弃未保存修改仅恢复 QQ账号、聊天对象和手机设置，其他页面的独立草稿保留。'),
-              h('button', { className: 'dfy-button', type: 'button', disabled: blocked, onClick: refresh }, operation === 'refresh' ? '刷新中…' : '刷新'),
-              dirty ? h('button', { className: 'dfy-button', type: 'button', disabled: blocked, onClick: discardChanges }, '放弃未保存修改') : null,
-              h('button', { className: 'dfy-button', type: 'button', onClick: () => save(false), disabled: blocked || !dirty || Boolean(accountErrors.length) }, operation === 'save' ? '保存中…' : '仅保存'),
               h('button', { className: 'dfy-button dfy-primary', type: 'button',
-                disabled: cannotApply || !dirty && !pendingReload,
-                onClick: () => save(true) }, operation === 'apply' ? '生效中…' : '保存并生效'))) : null)
+                disabled: blocked || Boolean(accountErrors.length),
+                onClick: save }, operation === 'apply' ? '生效中…' : queuedApply ? '等待她忙完…'
+                : pendingReload && !dirty ? '生效' : '保存'))) : null)
           : h('div', { className: 'dfy-empty' }, operation === 'refresh' ? '正在读取伴侣状态…' : '尚未读取配置。',
             h('div', { style: { marginTop: 12 } }, h('button', { className: 'dfy-button', type: 'button', disabled: blocked, onClick: refresh }, '刷新'))));
     }

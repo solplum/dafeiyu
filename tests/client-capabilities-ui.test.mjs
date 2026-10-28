@@ -107,7 +107,7 @@ function fixture() {
     : [node, ...node.props.children.flatMap((child) => nodes(child))];
   const text = (node = tree) => typeof node === 'string' ? node : node?.props?.hidden ? '' : node?.props?.children.map((child) => text(child)).join('') || '';
   const aliases = { '当前状态': '首页', '能力': '功能', '后台任务': '任务', '查看能力': '查看功能',
-    '刷新能力': '刷新功能', '检测组件': '检查连接', '刷新后台任务': '刷新任务', '保存': '仅保存', '保存并应用': '保存并生效',
+    '刷新能力': '刷新功能', '检测组件': '检查连接', '刷新后台任务': '刷新任务', '仅保存': '保存', '保存并生效': '保存', '保存并应用': '保存', '刷新': '刷新状态',
     'QQ 连接': 'QQ账号', '依赖与更新': '安装与更新' };
   const button = (label) => nodes().find((node) => node.type === 'button' && text(node) === (aliases[label] || label));
   const summary = (title, scope) => nodes(scope).find((node) => node.type === 'summary' && text(node) === title);
@@ -130,7 +130,8 @@ function fixture() {
   const config = (id) => nodes().find((node) => node.type === 'button' && node.props['aria-label'] === '配置能力 ' + id);
   const article = (id) => nodes().find((node) => node.type === 'article' && node.props['aria-label'] === '能力 ' + id);
   async function click(label) {
-    if (!button(label) && ['QQ 连接', '依赖与更新', 'QQ账号', '安装与更新'].includes(label)) await click('设置');
+    const groupOf = { 'QQ 连接': '聊天', 'QQ账号': '聊天', '任务': '聊天', '依赖与更新': '高级', '安装与更新': '高级', '声音': '高级', '手机': '高级', '模型服务': '高级', '视频平台': '高级', '功能': '高级', '性格': '她', '记忆': '她', '表情包': '她', '生活与成长': '她' };
+    const resolved = aliases[label] || label; if (!button(label) && groupOf[resolved]) await click(groupOf[resolved]);
     const node = button(label); assert(node, 'Missing button: ' + label); assert.equal(Boolean(node.props.disabled), false, 'Disabled button: ' + label);
     node.props.onClick?.(); await flush();
   }
@@ -148,7 +149,7 @@ test('overview links to the capability tab and opening only reads the capability
   assert.ok(f.button('查看能力'));
   assert.deepEqual(f.calls.map(({ route, method }) => ({ route, method })), [{ route: 'state', method: 'GET' }]);
   const tabs = f.nodes().filter((node) => node.props.role === 'tab').map((node) => f.text(node));
-  assert.deepEqual(tabs.slice(0, 3), ['首页', '功能', '任务']);
+  assert.deepEqual(tabs, ['首页', '她', '聊天', '高级']);
   await f.click('查看能力');
   assert.deepEqual(f.calls.map(({ route, method }) => ({ route, method })), [{ route: 'state', method: 'GET' }, { route: 'capabilities', method: 'GET' }]);
   assert.equal(ids.every((id) => Boolean(f.article(id))), true);
