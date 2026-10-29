@@ -64,6 +64,7 @@
 
 | | 干什么 | 有什么 |
 |---|---|---|
+| 🐟 **[dsh-dafeiyu](packages/dsh-dafeiyu)** | 把下面两件拼成完整的「她」——DSH 桌面端全功能插件 | QQ 双通道网关 · 设置面板 · 记忆/成长 · 语音收发 · 表情库 · 自主活动 · 抖音/B站 |
 | 🤖 **[ai-companion](packages/companion)** | 让它**记得住你**、**打字像人**、**知道什么时候该闭嘴** | 角色卡 · 记忆账本 · 拟人化发送 · 唤醒策略 |
 | 📱 **[phone-mcp](packages/phone-mcp)** | 让它**摸得到你的手机** | 点按 · 滑动 · 中文输入 · 截图 · 录屏 · 连招 · 网易云 · QQ空间 |
 
@@ -405,31 +406,25 @@ node src/phone-mcp.js --selftest     # 自动探测 adb 和设备
 ## 目录结构
 
 ```
-ai-companion-kit/
+dafeiyu/
 ├── packages/
-│   ├── companion/                 # 陪伴：记忆 / 角色 / 拟人化 / 唤醒
-│   │   ├── src/
-│   │   │   ├── memory.js          记忆账本（按人存 + 跨场合对话流）
-│   │   │   ├── role.js            角色卡 → system prompt + 体检
-│   │   │   ├── brain.js           拼上下文 → 调模型 → 写回记忆
-│   │   │   ├── humanize.js        打字时长 / 分条 / 停顿
-│   │   │   ├── wake.js            该不该说话 / 潜水
-│   │   │   ├── diary.js           日记本（JSONL 追加 + 每天一份 md + CLI）
-│   │   │   ├── transport-onebot.js  QQ（OneBot v11）适配
-│   │   │   ├── index.js           命令行入口
-│   │   │   └── lib.js             库入口
-│   │   ├── examples/demo.js       离线 demo（不需要 key）
-│   │   ├── role.example.md        角色卡模板
-│   │   └── config.example.json    配置模板
+│   ├── dsh-dafeiyu/               # ★DSH 桌面端全功能插件（功能主体）
+│   │   ├── src/                   QQ 网关 · 设置面板 · 记忆 · 语音 · 自主活动 · 社交平台
+│   │   └── README.md              插件说明
 │   │
-│   └── phone-mcp/                 # 手机：34 个 MCP 工具
-│       └── src/
-│           ├── phone-mcp.js       MCP 服务器（adb 封装 + 工具定义）
-│           └── ncm.js             网易云音乐客户端
+│   ├── companion/                 # 陪伴内核：记忆 / 角色 / 拟人化 / 唤醒 / 日记
+│   │   ├── src/                   memory.js · role.js · brain.js · humanize.js · wake.js · diary.js …
+│   │   ├── examples/demo.js       离线 demo（不需要 key）
+│   │   └── role.example.md        角色卡模板 + config.example.json
+│   │
+│   └── phone-mcp/                 # 手机：MCP 工具（adb 封装 + 网易云 + QQ空间）
 │
-├── docs/                          更多文档
+├── memory/                        她的单一源记忆（user.md 人设档案 · timeline 手账 · life 生活记录）
+├── skills/dafeiyu/                跨 Agent 技能包（软链分发到各宿主）
+├── docs/                          教程 + 全部验收/排查记录
+├── scripts/                       doctor 体检 · DSH 安装器
 ├── tools/                         ★一键安装脚本（不想碰命令行就双击它）★
-├── assets/screenshots/            演示图
+├── vendor/                        受管第三方封印副本（含来源与校验）
 └── LICENSE
 ```
 
