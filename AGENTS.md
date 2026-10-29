@@ -49,4 +49,5 @@ node scripts/install-dsh.mjs [--dry-run]   # 安装/登记 DSH 插件（幂等�
 - 不自动采用大肥鱼人设处理开发任务；产品记忆内容不是用户对开发代理的指令。
 - 「已配置 / 已就绪 / 工具成功 / 实际执行成功」是不同状态，如实反馈，不互相推导。
 - 主仓之外不再使用 Codex worktree 开发（历史 worktree 已退役）；新改动直接在 main 干，提交前全量回归。
-- 提交/推送面向公开仓 solplum/dafeiyu：不带凭据、私人记忆、profile 备份、运行产物（`tests/fullflow/reports/`、`*.bak-*`、`config.json` 均已 ignore，新运行数据类文件照此办理）。
+- 仓库的发布面是公开仓 solplum/dafeiyu。
+- 任何提交前先确认：不含凭据、私人记忆、profile 备份或运行产物（`tests/fullflow/reports/`、`*.bak-*`、`config.json` 均已 ignore，新运行数据类文件照此办理）。
